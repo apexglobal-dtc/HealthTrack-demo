@@ -205,17 +205,17 @@ export function Nutrition() {
         <div className="row between">
           <div>
             <div className="xs muted">Eaten so far</div>
-            <div className="num" style={{ fontSize: 30, fontWeight: 800 }}>{d.kcalRange[0] === d.kcalRange[1] ? Math.round(d.totals.kcal) : `${d.kcalRange[0]}–${d.kcalRange[1]}`}<span className="small muted"> kcal</span></div>
+            <div className="num" style={{ fontSize: 30, fontWeight: 800 }}>{!d.kcalRange ? 0 : d.kcalRange[0] === d.kcalRange[1] ? Math.round(d.totals.kcal) : `${d.kcalRange[0]}–${d.kcalRange[1]}`}<span className="small muted"> kcal</span></div>
             {d.showCalories && <div className="xs muted">of about {tg.kcal} for your day</div>}
           </div>
-          <Ring value={d.score.score} size={80} stroke={8} color="var(--amber)"><b className="num">{Math.round(d.score.score)}</b></Ring>
+          <Ring value={d.score?.score ?? 0} size={80} stroke={8} color="var(--amber)"><b className="num">{d.score ? Math.round(d.score.score) : '--'}</b></Ring>
         </div>
         <div className="row" style={{ gap: 12, marginTop: 14 }}>
           {macro('Protein', d.totals.protein, tg.protein, 'var(--violet)')}
           {macro('Carbs', d.totals.carbs, tg.carbsRange, 'var(--amber)')}
           {macro('Fiber', d.totals.fiber, tg.fiber, 'var(--green)')}
         </div>
-        <p className="xs muted" style={{ marginBottom: 0 }}>{d.score.confirmed} of {d.score.usual} usual meals logged, so Fuel counts {Math.round(d.score.cov * 100)}% of its weight today.</p>
+        <p className="xs muted" style={{ marginBottom: 0 }}>{d.score ? `${d.score.confirmed} of ${d.score.usual} usual meals logged, so Fuel counts ${Math.round(d.score.cov * 100)}% of its share today.` : 'No meals logged yet today. Snap your first meal and your Fuel score appears here.'}</p>
       </div>
       <div className="row" style={{ gap: 8 }}>
         <Btn sm onClick={() => go('food')}><Icon name="camera" size={18} />Snap a meal</Btn>

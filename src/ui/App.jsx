@@ -25,6 +25,23 @@ const ROUTES = {
 const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
 const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
 
+// Keeps one broken screen from blanking the whole app.
+class ScreenBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err) { try { console.error('[screen]', err); } catch (e) {} }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div className="card center" style={{ marginTop: 20 }}>
+        <h3>This screen hit a problem</h3>
+        <p className="small muted">The rest of the app still works. Please tell us what you tapped.</p>
+        <button className="btn primary" onClick={this.props.onHome}>Back to Today</button>
+      </div>
+    );
+  }
+}
+
 function systemMode() {
   if (typeof document === 'undefined') return 'day';
   const host = document.documentElement.getAttribute('data-theme');
@@ -126,7 +143,7 @@ export default function App({ platform }) {
         <div ref={scrollRef} className={`scroll ${NO_NAV.has(route) ? 'noNav' : ''}`} key={route}>
           <StatusBar />
           {!NO_NAV.has(route) && <TopBar />}
-          <Screen key={route + JSON.stringify(params)} />
+          <ScreenBoundary key={route + JSON.stringify(params)} onHome={() => go('today')}><Screen /></ScreenBoundary>
         </div>
         {!NO_NAV.has(route) && (
           <nav className="nav" aria-label="Main">
