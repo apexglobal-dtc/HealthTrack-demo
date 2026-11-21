@@ -51,7 +51,7 @@ export function clockLabel(min) {
 const L = (ml) => `${round(ml / 1000, 1)} L`;
 const kcalRange = (k) => `${Math.round((k * 0.9) / 10) * 10}-${Math.round((k * 1.1) / 10) * 10} kcal`;
 
-function mealSlot(m) {
+export function mealSlot(m) {
   const n = String(m.name || '').toLowerCase();
   for (const s of ['breakfast', 'lunch', 'dinner', 'snack']) if (n.includes(s)) return s[0].toUpperCase() + s.slice(1);
   const x = m.minute ?? 0;
@@ -59,18 +59,22 @@ function mealSlot(m) {
 }
 
 // Everything the plan and check-ins need, in one place.
-export function dayFacts({ date, profile, day, c, session, oneThing, oneThingRecord, dinnerIdea, stepsToday, nextTrain, proteinPerKg }) {
-  const meals = (day.meals || []).map((m) => ({ ...m, slot: mealSlot(m) }));
+export function dayFacts({ date, profile, day, c, session, oneThing, oneThingRecord, dinnerIdea, stepsToday, nextTrain, proteinPerKg, planDay }) {
+  const meals = (day.meals || []).map((m) => ({ ...m, slot: m.slot ? m.slot[0].toUpperCase() + m.slot.slice(1) : mealSlot(m) }));
+  const pm = (slot) => planDay?.meals?.find((m) => m.slot === slot);
+  const pName = (slot, fb) => { const m = pm(slot); return !m ? fb : m.out ? 'Eating out' : m.name || fb; };
+  const pKcal = (slot) => { const m = pm(slot); return !m ? null : m.out ? m.budget : m.totals?.kcal ?? null; };
+  const pProt = (slot) => { const m = pm(slot); return m?.totals ? Math.round(m.totals.protein) : null; };
   const kg = profile.weightKg || 70;
   const need = c.en?.need || 2000;
-  const proteinGoal = Math.round((proteinPerKg || 1.2) * kg);
+  const proteinGoal = planDay?.goal?.protein || Math.round((proteinPerKg || 1.2) * kg);
   const cutoff = c.bed - 8.8 * 60;
   return {
     date, profile, meals, need, proteinGoal, cutoff, bed: c.bed, sleepNeed: c.N?.N || 7.5,
     water: day.water || [], caffeine: day.caffeine || [], fluid: c.fluid, wt: c.wt,
-    night: c.night, readiness: c.ready, session, oneThing, oneThingRecord, dinnerIdea, stepsToday, stepTarget: c.activity?.target || 8000,
+    night: c.night, readiness: c.ready, session, oneThing, oneThingRecord, dinnerIdea: pName('dinner', dinnerIdea), stepsToday, planKcal: { Breakfast: pKcal('breakfast'), Lunch: pKcal('lunch'), Dinner: pKcal('dinner') }, planProt: { Breakfast: pProt('breakfast'), Lunch: pProt('lunch'), Dinner: pProt('dinner') }, hasPlan: !!planDay, stepTarget: c.activity?.target || 8000,
     cyclePhase: c.cyc?.phase?.label || null, checkinDone: !!c.checkin, nextTrain,
-    breakfastIdea: pick(BREAKFASTS, profile, date), lunchIdea: pick(LUNCHES, profile, date),
+    breakfastIdea: pName('breakfast', pick(BREAKFASTS, profile, date)), lunchIdea: pName('lunch', pick(LUNCHES, profile, date)),
     trainingDone: !!session && !session.rest && session.exercises?.length > 0 && session.exercises.every((e) => e.done >= e.sets),
   };
 }
@@ -79,16 +83,17 @@ const has = (f, slot) => f.meals.some((m) => m.slot === slot);
 
 // ---------------- Today's plan, grouped by category ----------------
 export function planByCategory(f) {
-  const bk = Math.round(f.need * SHARE.Breakfast), ln = Math.round(f.need * SHARE.Lunch), dn = Math.round(f.need * SHARE.Dinner);
+  const bk = f.planKcal?.Breakfast ?? Math.round(f.need * SHARE.Breakfast), ln = f.planKcal?.Lunch ?? Math.round(f.need * SHARE.Lunch), dn = f.planKcal?.Dinner ?? Math.round(f.need * SHARE.Dinner);
+  const pr = (slot) => f.planProt?.[slot] ?? Math.round(f.proteinGoal * 0.3);
   const pMeal = Math.round(f.proteinGoal * 0.3);
   const cats = [
     {
-      id: 'nutrition', name: 'Nutrition', icon: 'leaf', color: 'var(--amber)', tint: 'var(--tint-amber)',
+      id: 'nutrition', name: 'Nutrition', icon: 'leaf', color: 'var(--amber)', tint: 'var(--tint-amber)', link: { to: 'mealplan', label: 'Open the full meal plan' },
       goal: `About ${Math.round(f.need / 50) * 50} kcal and ${f.proteinGoal} g protein today`,
       items: [
-        { when: 'AM', text: `Breakfast: ${f.breakfastIdea}`, sub: `${kcalRange(bk)}, ${pMeal} g protein`, done: has(f, 'Breakfast'), action: { kind: 'photo', meal: 'Breakfast' } },
-        { when: 'PM', text: `Lunch: ${f.lunchIdea}`, sub: `${kcalRange(ln)}, ${pMeal} g protein`, done: has(f, 'Lunch'), action: { kind: 'photo', meal: 'Lunch' } },
-        { when: 'PM', text: `Dinner: ${f.dinnerIdea}`, sub: `${kcalRange(dn)}, ${pMeal} g protein`, done: has(f, 'Dinner'), action: { kind: 'photo', meal: 'Dinner' } },
+        { when: 'AM', text: `Breakfast: ${f.breakfastIdea}`, sub: `${kcalRange(bk)}, ${pr('Breakfast')} g protein`, done: has(f, 'Breakfast'), action: { kind: 'photo', meal: 'Breakfast' } },
+        { when: 'PM', text: `Lunch: ${f.lunchIdea}`, sub: `${kcalRange(ln)}, ${pr('Lunch')} g protein`, done: has(f, 'Lunch'), action: { kind: 'photo', meal: 'Lunch' } },
+        { when: 'PM', text: `Dinner: ${f.dinnerIdea}`, sub: `${kcalRange(dn)}, ${pr('Dinner')} g protein`, done: has(f, 'Dinner'), action: { kind: 'photo', meal: 'Dinner' } },
       ],
     },
     {
@@ -168,7 +173,7 @@ export function buildCheckins(f, nowMin) {
   {
     const adv = [];
     const tst = f.night?.tstH;
-    adv.push({ kind: 'Breakfast', icon: 'leaf', text: `${f.breakfastIdea}. About ${kcalRange(f.need * SHARE.Breakfast)} with ${pMeal} g protein.` });
+    adv.push({ kind: 'Breakfast', icon: 'leaf', text: `${f.breakfastIdea}. About ${kcalRange(f.planKcal?.Breakfast ?? f.need * SHARE.Breakfast)} with ${f.planProt?.Breakfast ?? pMeal} g protein.` });
     adv.push({ kind: 'Hydration', icon: 'drop', text: `Start with a glass of water (250 to 500 ml). Aim for ${L(f.wt * 0.4)} by noon and ${L(f.wt)} today.` });
     if (trainLine) adv.push({ kind: 'Training', icon: 'dumbbell', text: trainLine });
     const other = [];

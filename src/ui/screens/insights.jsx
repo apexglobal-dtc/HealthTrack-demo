@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp, useLoad, Icon, Btn, Back, Loading, ErrorBox, Locked, SimBadge, PILLAR, bandColor, confColor, fmtH, clock, dayName } from '../kit.jsx';
+import { MealPlanCard } from './mealplan.jsx';
 import { Ring, CountUp, BandSpark, Spark, SleepWindows, ContributionStack, CutoffTimeline, CapsuleBars, SegRing } from '../viz.jsx';
 
 export function Insights() {
@@ -217,6 +218,7 @@ export function Nutrition() {
         </div>
         <p className="xs muted" style={{ marginBottom: 0 }}>{d.score ? `${d.score.confirmed} of ${d.score.usual} usual meals logged, so Fuel counts ${Math.round(d.score.cov * 100)}% of its share today.` : 'No meals logged yet today. Snap your first meal and your Fuel score appears here.'}</p>
       </div>
+      <MealPlanCard />
       <DeficitCard />
       <div className="row" style={{ gap: 8 }}>
         <Btn sm onClick={() => go('food')}><Icon name="camera" size={18} />Snap a meal</Btn>

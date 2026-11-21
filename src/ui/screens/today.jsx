@@ -213,7 +213,7 @@ function TodaysPlan({ cats }) {
           </button>
         ))}
       </div>
-      <div className="xs muted" style={{ margin: '12px 0 4px' }}>{cat.name} plan · {cat.goal}</div>
+      <div className="row between" style={{ margin: '12px 0 4px', gap: 8 }}><span className="xs muted">{cat.name} plan · {cat.goal}</span>{cat.link && <button className="link xs" style={{ flex: 'none' }} onClick={() => go(cat.link.to, { back: 'today' })}>{cat.link.label}</button>}</div>
       <div className="col" style={{ gap: 0 }}>
         {cat.items.map((p, i) => (
           <div key={i} className="row" style={{ padding: '10px 0', borderBottom: i < cat.items.length - 1 ? '1px dashed var(--line)' : 0, alignItems: 'flex-start' }}>

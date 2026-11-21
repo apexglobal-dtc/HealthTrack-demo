@@ -12,7 +12,8 @@ import { MARKERS, markerByKey, parseLabText, foundationScore, SAMPLE_LAB_TEXT, m
 import { FOODS, findFood, searchFoods, matchFood, mealTotals, nutrientsFor } from '../engine/foods.js';
 import { redFlag, SAFETY_RESPONSES, postCheck, buildPrompt, stubReply } from '../engine/genie.js';
 import { DEVICE_CATALOG, deviceById, simulatedPeriods, simulateStrengthHistory } from '../engine/simulate.js';
-import { dayFacts, planByCategory, buildCheckins } from './dayplan.js';
+import { dayFacts, planByCategory, buildCheckins, mealSlot } from './dayplan.js';
+import { nutritionGoal, buildDay, groceryList, parseRequest, candidates, recipeById, RECIPES, SLOT_LABEL } from '../engine/mealplan.js';
 import { PACES, deficitPlan, deficitSafety, dayDeficit, weekSummary, projection, calorieFloor } from '../engine/deficit.js';
 import { computeCore, buildToday, mergeSources, todaysPlanned, nextTrainingDay, mealIdea, factsFor } from './compute.js';
 
@@ -22,8 +23,8 @@ export const PRICING = {
   trialDays: 30,
 };
 
-const DOCS = ['profile', 'days', 'history', 'train', 'cycle', 'labs', 'chat', 'memory', 'devices', 'reminders'];
-const EMPTY = { days: {}, history: [], train: { sets: [], workouts: [], plan: null, tests: [], moved: [], overrides: {} }, cycle: { enabled: false, periods: [], flow: {}, symptoms: {} }, labs: { results: [], reports: [] }, chat: { messages: [], actions: [] }, memory: { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] }, devices: [], reminders: [] };
+const DOCS = ['profile', 'days', 'history', 'train', 'cycle', 'labs', 'chat', 'memory', 'devices', 'reminders', 'mealplan'];
+const EMPTY = { days: {}, history: [], train: { sets: [], workouts: [], plan: null, tests: [], moved: [], overrides: {} }, cycle: { enabled: false, periods: [], flow: {}, symptoms: {} }, labs: { results: [], reports: [] }, chat: { messages: [], actions: [] }, memory: { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] }, devices: [], reminders: [], mealplan: { prefs: null, overrides: {}, notes: {}, grocery: [] } };
 
 export function createService({ store, wearables, ai, now = () => new Date() }) {
   const today = () => isoDate(now());
@@ -251,7 +252,9 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     const checkinPct = c.checkin ? Math.round((100 * ['energy', 'soreness', 'stress', 'mood'].filter((k) => c.checkin[k] != null).length) / 4) : 0;
     const hour = now().getHours();
     const nt = nextTrainingDay(data, t);
-    const facts = dayFacts({
+    let planDay = null;
+    try { planDay = await todayMealPlan(u, data, c); } catch (e) { planDay = null; }
+    const facts = dayFacts({ planDay,
       date: t, profile: p, day: c.day, c, session: td.session, oneThing: td.oneThing, oneThingRecord: td.oneThingRecord,
       dinnerIdea: idea.name, stepsToday: c.asm.stepsByDate[t] ?? null, nextTrain: nt ? daysBetween(t, nt) : null, proteinPerKg: data.train.plan?.proteinGPerKg,
     });
@@ -324,7 +327,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     const t = meal.date || today();
     const items = meal.items.map((i) => ({ foodId: i.foodId, grams: Number(i.grams), gramsLow: i.gramsLow, gramsHigh: i.gramsHigh, confidence: i.confidence, confirmed: !!meal.confirmed }));
     const tot = mealTotals(items);
-    const rec = { id: uid('meal'), minute: meal.minute ?? nowMin(), name: meal.name || mealName(nowMin()), items, ...tot, confirmed: !!meal.confirmed, source: meal.source || 'manual' };
+    const rec = { id: uid('meal'), minute: meal.minute ?? nowMin(), name: meal.name || mealName(nowMin()), items, ...tot, confirmed: !!meal.confirmed, source: meal.source || 'manual', ...(meal.slot ? { slot: meal.slot } : {}) };
     await mutateDay(u, t, (d) => { (d.meals ||= []).push(rec); });
     if (meal.saveAsUsual) {
       const p = await store.get(u, 'profile');
@@ -479,6 +482,141 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       score: c.nutrition, showCalories, idea: { ...idea, ...mealTotals(idea.items), items: idea.items.map((i) => ({ ...i, name: findFood(i.foodId)?.name })) },
       water: { fluid: c.fluid, target: c.wt, logs: c.day.water || [] }, caffeine: { logs: c.day.caffeine || [], cutoffMin: c.bed - 8.8 * 60, bed: c.bed }, days7,
     };
+  }
+
+  // ---------------- Meal plan ----------------
+  function labFlags(data) {
+    const latest = {};
+    for (const r of data.labs?.results || []) if (!latest[r.key] || r.date >= latest[r.key].date) latest[r.key] = r;
+    return Object.values(latest).map((r) => { const m = markerByKey(r.key); return m ? { key: r.key, low: r.value < m.opt[0], high: r.value > m.opt[1] } : null; }).filter(Boolean);
+  }
+  function goalFor(data, c, d, t) {
+    const planned = todaysPlanned(data, d);
+    const isToday = d === t;
+    return nutritionGoal({
+      profile: data.profile, en: c.en, trainingToday: !!planned,
+      trainingCode: planned ? (isToday && c.ready != null ? (c.ready >= 80 ? 'push' : c.ready < 50 ? 'lighter' : 'planned') : 'planned') : null,
+      shortSleep: isToday && c.night?.tstH != null && c.night.tstH < (c.N?.N || 7.5) - 1,
+      cyclePhase: isToday ? (c.cyc?.phase?.phase || null) : null, labs: labFlags(data), waterMl: isToday ? c.wt : null,
+    });
+  }
+  function loggedSlots(data, d) {
+    const out = {};
+    for (const m of data.days[d]?.meals || []) out[m.slot || mealSlot(m).toLowerCase()] = true;
+    return out;
+  }
+  function planDays(data, c, mp, from, n) {
+    const t = today();
+    const prefs = mp.prefs || {};
+    const days = [];
+    let recent = [];
+    for (let i = -2; i < n; i++) {
+      const d = addDays(from, i);
+      const goal = goalFor(data, c, d, t);
+      const day = buildDay({ date: d, goal, profile: data.profile, prefs, override: mp.overrides?.[d] || {}, recent, logged: loggedSlots(data, d) });
+      recent = [...recent, ...day.meals.map((m) => m.recipeId).filter(Boolean)].slice(-8);
+      if (i >= 0) days.push({ ...day, goal });
+    }
+    return days;
+  }
+  async function mealPlanDoc(u) { return (await store.get(u, 'mealplan')) || structuredClone(EMPTY.mealplan); }
+  async function todayMealPlan(u, data, c) {
+    const mp = await mealPlanDoc(u);
+    return planDays(data, c, mp, today(), 1)[0];
+  }
+  async function mealPlan(u, { date } = {}) {
+    const { data, wear } = await ctx(u);
+    const t = today();
+    const c = computeCore(data, wear, t);
+    const mp = await mealPlanDoc(u);
+    const week = planDays(data, c, mp, t, 7);
+    const sel = week.find((x) => x.date === (date || t)) || week[0];
+    const showCalories = data.profile.edScreenPassed !== false && !data.profile.edFlag;
+    const GOAL_PHRASE = { 'Sleep better': 'better sleep', 'More energy': 'more energy', 'Lose weight': 'losing weight', 'Build strength': 'building strength', 'Manage stress': 'managing stress', 'Eat better': 'eating better', 'Get fitter': 'getting fitter', 'Feel balanced': 'feeling balanced' };
+    const masterGoal = data.profile.weightGoal === 'lose' ? 'losing weight at a safe pace' : GOAL_PHRASE[(data.profile.goals || [])[0]] || 'feeling your best';
+    return {
+      date: sel.date, today: t, prefs: mp.prefs, needsSetup: !mp.prefs, showCalories, masterGoal,
+      goal: sel.goal, day: sel, note: mp.notes?.[sel.date] || null,
+      week: week.map((x) => ({ date: x.date, kcal: x.totals.kcal, goalKcal: x.goal.kcal, meals: x.meals.filter((m) => m.slot !== 'snack').map((m) => ({ slot: m.slot, name: m.out ? 'Eating out' : m.name, prep: m.prep, kcal: m.out ? m.budget : Math.round(m.totals?.kcal || 0) })) })),
+      grocery: groceryList(week, mp.grocery || []), groceryChecked: (mp.grocery || []).length,
+      allergies: data.profile.allergies || [], diet: data.profile.diet || 'none',
+      provenance: 'Calories and macros are calculated per gram from USDA FoodData Central values (rounded). Recipes come from the Health Track recipe library. When Claude adjusts a plan it only picks library recipes and portion sizes; it never sets the numbers.',
+      aiAvailable: ai.available(),
+    };
+  }
+  async function mealPlanAction(u, { date, op, slot, value }) {
+    const mp = await mealPlanDoc(u);
+    const d = date || today();
+    mp.overrides ||= {}; mp.notes ||= {};
+    const ov = (mp.overrides[d] ||= {});
+    if (op === 'prefs') mp.prefs = { skill: value?.skill === 'beginner' ? 'beginner' : 'confident', prepMax: [15, 30, 45].includes(Number(value?.prepMax)) ? Number(value.prepMax) : 30 };
+    else if (op === 'swap') { ov[slot] = { swaps: ((ov[slot]?.swaps) || 0) + 1 }; }
+    else if (op === 'out') { ov[slot] = ov[slot]?.out ? {} : { out: true, by: 'you' }; }
+    else if (op === 'reset') { delete mp.overrides[d]; delete mp.notes[d]; }
+    else if (op === 'grocery') { const s = new Set(mp.grocery || []); if (s.has(value)) s.delete(value); else s.add(value); mp.grocery = [...s]; }
+    else if (op === 'groceryClear') { mp.grocery = []; }
+    else if (op === 'log') {
+      const { data, wear } = await ctx(u);
+      const c = computeCore(data, wear, today());
+      const day = planDays(data, c, mp, d, 1)[0];
+      const m = day.meals.find((x) => x.slot === slot);
+      if (!m || m.out || !m.items) throw new Error('Nothing to log for that meal');
+      await logMeal(u, { date: d, items: m.items.map((i) => ({ foodId: i.foodId, grams: i.grams })), name: m.name, slot, confirmed: true, source: 'plan' });
+      return { ok: true };
+    }
+    await save(u, 'mealplan', mp);
+    return { ok: true };
+  }
+  async function adjustMealPlan(u, { date, text }) {
+    const { data, wear } = await ctx(u);
+    const t = today();
+    const d = date || t;
+    const c = computeCore(data, wear, t);
+    const mp = await mealPlanDoc(u);
+    const day = planDays(data, c, mp, d, 1)[0];
+    const req = String(text || '').slice(0, 400);
+    let result = null;
+    if (ai.available()) {
+      const options = ['breakfast', 'lunch', 'dinner', 'snack'].map((s) => ({ slot: s, recipes: candidates(s, data.profile, mp.prefs || {}).map((r) => ({ id: r.id, name: r.name, kcal: Math.round(r.base.kcal), protein: Math.round(r.base.protein), tags: r.tags, ingredients: r.items.map((i) => i.foodId) })) }));
+      const system = `You adjust a one-day meal plan for a wellness app. Reply with JSON only: {"changes":[{"slot":"breakfast|lunch|dinner|snack","recipeId":"<id from options or omit>","portion":<0.6-1.6 or omit>,"out":<true if the person eats this meal out>}],"explanation":"<one or two plain sentences to the person>"}.
+Rules: only use recipe ids from the options (they already respect allergies and diet). Never state calorie or nutrient numbers; the app calculates them. If eating out, set out:true for that meal and make other meals a little smaller with portion 0.8-0.9. If the person mentions an ingredient they have, pick recipes containing it. Keep the day's goal in mind: ${day.goal.focus.map((f) => f.why).join(' ')}`;
+      const msg = `Today's plan: ${day.meals.map((m) => `${m.slot}: ${m.out ? 'eating out' : m.name}`).join('; ')}.
+Options: ${JSON.stringify(options)}
+Request: ${req}`;
+      try {
+        const r = await ai.genie({ system, messages: [{ role: 'user', content: msg }] });
+        if (r && Array.isArray(r.changes)) {
+          const ov = {};
+          for (const ch of r.changes.slice(0, 4)) {
+            if (!['breakfast', 'lunch', 'dinner', 'snack'].includes(ch.slot)) continue;
+            if (ch.out) { ov[ch.slot] = { out: true, by: 'claude' }; continue; }
+            const rec = ch.recipeId ? recipeById(ch.recipeId) : null;
+            const ok = rec && rec.slot === ch.slot && candidates(ch.slot, data.profile, mp.prefs || {}).some((x) => x.id === rec.id);
+            const portion = Number(ch.portion) >= 0.6 && Number(ch.portion) <= 1.6 ? Math.round(Number(ch.portion) * 20) / 20 : undefined;
+            if (ok || portion) ov[ch.slot] = { ...(ok ? { recipeId: rec.id } : { recipeId: day.meals.find((m) => m.slot === ch.slot)?.recipeId }), ...(portion ? { portion } : {}), by: 'claude' };
+          }
+          if (Object.keys(ov).length) result = { override: ov, explanation: String(r.explanation || '').slice(0, 400), by: 'claude' };
+        }
+      } catch (e) { /* fall back to rules */ }
+    }
+    if (!result) { const r = parseRequest(req, day, data.profile); result = { ...r, by: 'rules' }; }
+    mp.overrides ||= {}; mp.notes ||= {};
+    if (result.matched !== false) mp.overrides[d] = { ...(mp.overrides[d] || {}), ...result.override };
+    // an ingredient to use up: if nothing left today can use it, carry it to tomorrow and say so
+    const pref = result.override?.prefer;
+    if (pref) {
+      const after = planDays(data, c, mp, d, 1)[0];
+      const usedToday = after.meals.some((m) => !m.logged && !m.out && m.items?.some((i) => i.foodId === pref));
+      if (!usedToday) {
+        const tm = addDays(d, 1);
+        mp.overrides[tm] = { ...(mp.overrides[tm] || {}), prefer: pref };
+        const nm = (findFood(pref)?.name || pref).toLowerCase().split(',')[0];
+        result.explanation = result.explanation.replace(/Meals now use the [^.]*\./, `The meals left today can't use the ${nm}, so tomorrow's plan does.`);
+      }
+    }
+    mp.notes[d] = { text: req, explanation: result.explanation, by: result.by };
+    await save(u, 'mealplan', mp);
+    return { ok: true, explanation: result.explanation, by: result.by };
   }
 
   // ---------------- Calorie deficit ----------------
@@ -1003,7 +1141,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     insights, sleepDetail, recoveryDetail, nutritionDay, genieChat, genieStream, genieAction, flagAnswer, getMemory, updateMemory, geniePacket,
     progress, updateGoals, train, setTrainingGoal, logSet, logWorkout, deleteWorkout, overrideSession, logFitnessTest,
     labs, readLabReport, confirmLabs, cycle, setCycle, logCycleDay, deleteCycleData,
-    profileHub, saveProfile, updateSetup, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
+    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
   };
 }
 

@@ -70,6 +70,22 @@ const ROWS = [
   ['Latte', 54, 3.4, 5, 2, 0, 240, 350, 470],
   ['Beer', 43, 0.5, 3.6, 0, 0, 330, 355, 500],
   ['Red wine', 85, 0.1, 2.6, 0, 0, 120, 150, 250],
+  // added for the meal planner's recipes (USDA FoodData Central, rounded)
+  ['Whole wheat tortilla', 310, 9.7, 50, 8, 7, 45, 60, 75],
+  ['Bell pepper', 26, 1, 6, 0.3, 2.1, 60, 120, 160],
+  ['Onion', 40, 1.1, 9.3, 0.1, 1.7, 40, 80, 110],
+  ['Mushrooms', 22, 3.1, 3.3, 0.3, 1, 50, 100, 150],
+  ['Shrimp, cooked', 99, 24, 0.2, 0.3, 0, 80, 120, 170],
+  ['Cottage cheese', 98, 11, 3.4, 4.3, 0, 110, 170, 225],
+  ['Chia seeds', 486, 17, 42, 31, 34, 10, 15, 25],
+  ['Turkey breast, roasted', 147, 30, 0, 2, 0, 60, 100, 140],
+  ['Edamame', 121, 12, 9, 5, 5, 60, 100, 155],
+  ['Zucchini', 17, 1.2, 3.1, 0.3, 1, 80, 120, 200],
+  ['Strawberries', 32, 0.7, 7.7, 0.3, 2, 80, 150, 200],
+  ['Walnuts', 654, 15, 14, 65, 6.7, 15, 28, 45],
+  ['Soy sauce', 53, 8, 4.9, 0.6, 0.8, 10, 15, 30],
+  ['Rolled oats, dry', 379, 13, 68, 6.5, 10, 30, 40, 60],
+  ['Kidney beans, cooked', 127, 8.7, 23, 0.5, 6.4, 90, 170, 250],
 ];
 
 export const FOODS = ROWS.map((r) => ({
