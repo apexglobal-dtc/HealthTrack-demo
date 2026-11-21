@@ -217,6 +217,7 @@ export function Nutrition() {
         </div>
         <p className="xs muted" style={{ marginBottom: 0 }}>{d.score ? `${d.score.confirmed} of ${d.score.usual} usual meals logged, so Fuel counts ${Math.round(d.score.cov * 100)}% of its share today.` : 'No meals logged yet today. Snap your first meal and your Fuel score appears here.'}</p>
       </div>
+      <DeficitCard />
       <div className="row" style={{ gap: 8 }}>
         <Btn sm onClick={() => go('food')}><Icon name="camera" size={18} />Snap a meal</Btn>
         <Btn sm kind="secondary" onClick={() => go('voice')}><Icon name="mic" size={18} />Say it</Btn>
@@ -257,6 +258,160 @@ export function Nutrition() {
         <CapsuleBars items={d.days7.map((x) => ({ label: dayName(x.date).slice(0, 1), v: x.protein }))} target={tg.protein} fmt={(v) => `${v ?? 0} g`} />
       </div>
       <p className="xs muted">Calories are shown as ranges because photos and portions are estimates. Food values from USDA FoodData Central (rounded).</p>
+    </div>
+  );
+}
+
+// ---------------- Calorie deficit ----------------
+const toLb = (kg) => Math.round(kg * 2.2046);
+const wFmt = (kg, units) => (kg == null ? '--' : units === 'imperial' ? `${toLb(kg)} lb` : `${Math.round(kg * 10) / 10} kg`);
+const wIn = (v, units) => (v === '' || v == null ? '' : units === 'imperial' ? Math.round((Number(v) / 2.2046) * 10) / 10 : Number(v));
+const shortDate = (d) => new Date(d + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+function DeficitCard() {
+  const { go } = useApp();
+  const { data: d } = useLoad('deficit');
+  if (!d || d.hidden) return null;
+  return (
+    <button className="card tap row" style={{ textAlign: 'left', gap: 12 }} onClick={() => go('deficit')}>
+      <span className="ico" style={{ background: 'var(--tint-coral)', color: 'var(--coral)' }}><Icon name="target" /></span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <b>Calorie deficit</b>
+        <div className="xs muted">{d.paused ? 'Paused for now. Tap to see why.' : d.enabled
+          ? `Target ${d.plan.target.toLocaleString()} kcal today · ${d.today.left >= 0 ? `${d.today.left.toLocaleString()} left` : `${Math.abs(d.today.left).toLocaleString()} over`}`
+          : 'See your maintenance calories and set a safe weight-loss pace'}</div>
+      </span>
+      <Icon name="chev" />
+    </button>
+  );
+}
+
+export function Deficit() {
+  const { act, toast, bump } = useApp();
+  const { data: d, error } = useLoad('deficit');
+  const [pace, setPace] = useState(null);
+  const [w, setW] = useState('');
+  const [target, setTarget] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [newW, setNewW] = useState('');
+  if (error) return <ErrorBox error={error} />;
+  if (!d) return <Loading />;
+  const u = d.units;
+  const unit = u === 'imperial' ? 'lb' : 'kg';
+  const show = (kg) => (kg == null ? '' : u === 'imperial' ? toLb(kg) : kg);
+  if (d.hidden) return <div className="stack"><Back to="nutrition" label="Food" /><h1 className="page">Calorie deficit</h1><div className="card"><p className="small">{d.reason}</p></div></div>;
+  const sel = pace || d.pace;
+  const opt = d.paces.find((x) => x.id === sel) || d.paces[0];
+  const tgt = target ?? (d.targetKg != null ? show(d.targetKg) : '');
+  async function save(enabled) {
+    setBusy(true); setErr(null);
+    try {
+      await act('setDeficitGoal', { enabled, pace: sel, weightKg: d.weightKg ? undefined : wIn(w, u), targetKg: enabled ? wIn(tgt, u) : undefined });
+      toast(enabled ? 'Calorie target set' : 'Calorie deficit turned off');
+      setPace(null); setTarget(null); bump();
+    } catch (e) { setErr(e.message || String(e)); }
+    setBusy(false);
+  }
+  const p = d.plan;
+  const eatenPct = Math.min(100, (d.today.kcal / Math.max(1, p.target)) * 100);
+  return (
+    <div className="stack">
+      <Back to="nutrition" label="Food" />
+      <div className="rise"><div className="eyebrow">Nutrition</div><h1 className="page">Calorie deficit</h1></div>
+
+      {d.paused && <div className="notice info"><Icon name="info" /><div>{d.pausedReason}</div></div>}
+
+      {d.enabled && (
+        <div className="card rise">
+          <div className="xs muted">Today's target</div>
+          <div className="row between" style={{ alignItems: 'baseline' }}>
+            <div className="num" style={{ fontSize: 34, fontWeight: 800 }}>{p.target.toLocaleString()}<span className="small muted"> kcal</span></div>
+            <span className="chip coral">−{p.daily} kcal a day</span>
+          </div>
+          <div className="progressbar" style={{ marginTop: 8, height: 10 }}><i style={{ width: `${eatenPct}%`, background: d.today.left < 0 ? 'var(--coral)' : 'var(--amber)' }} /></div>
+          <div className="row between xs muted" style={{ marginTop: 6 }}>
+            <span>Eaten {d.today.low === d.today.high ? d.today.kcal : `${d.today.low}–${d.today.high}`} kcal ({d.today.meals} of {d.today.usual} meals)</span>
+            <b style={{ color: d.today.left < 0 ? 'var(--coral)' : 'var(--text)' }}>{d.today.left >= 0 ? `${d.today.left.toLocaleString()} left` : `${(-d.today.left).toLocaleString()} over`}</b>
+          </div>
+          {d.today.deficit && (
+            <div className="small" style={{ marginTop: 10, background: 'var(--surface2)', borderRadius: 12, padding: '10px 12px' }}>
+              {d.today.complete
+                ? <>Today's deficit so far: <b>{d.today.deficit.low === d.today.deficit.high ? d.today.deficit.mid : `${d.today.deficit.low} to ${d.today.deficit.high}`} kcal</b> below your maintenance of {p.tdee.toLocaleString()}.</>
+                : <>Log all your meals today and we will show today's real deficit. Until then it would look bigger than it is.</>}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="card rise" style={{ animationDelay: '.05s' }}>
+        <h3>How your numbers are worked out</h3>
+        <div className="kv"><span>Resting burn (BMR)<div className="xs faint">Mifflin-St Jeor: weight, height, age, sex</div></span><b className="num">{p.bmr.toLocaleString()} kcal</b></div>
+        <div className="kv"><span>Activity factor<div className="xs faint">From your last 14 days of steps and exercise</div></span><b className="num">× {p.AF}</b></div>
+        <div className="kv"><span>Maintenance (TDEE)<div className="xs faint">What keeps your weight steady</div></span><b className="num">{p.tdee.toLocaleString()} kcal</b></div>
+        {!d.paused && <div className="kv"><span>Deficit ({Math.round(opt.pct * 100)}% pace)<div className="xs faint">Never more than 20% of maintenance</div></span><b className="num">−{opt.daily} kcal</b></div>}
+        {!d.paused && <div className="kv"><span>Daily target<div className="xs faint">Never below {d.floor.toLocaleString()} kcal</div></span><b className="num">{opt.target.toLocaleString()} kcal</b></div>}
+        {!d.paused && <div className="kv"><span>Expected change</span><b className="num">about {u === 'imperial' ? `${Math.round(opt.weeklyKg * 2.2046 * 10) / 10} lb` : `${opt.weeklyKg} kg`} a week</b></div>}
+        {opt.limitedBy === 'floor' && <p className="xs" style={{ color: 'var(--amber)' }}>Your target is held at the {d.floor.toLocaleString()} kcal minimum, so the deficit is smaller than the pace suggests.</p>}
+        {opt.limitedBy === 'pace' && <p className="xs" style={{ color: 'var(--amber)' }}>Capped so you lose no more than 1% of your body weight a week.</p>}
+        <p className="xs muted" style={{ marginBottom: 0 }}>About 7,700 kcal of deficit equals roughly 1 kg ({u === 'imperial' ? 'about 3,500 kcal per lb' : '2.2 lb'}). Treat it as a guide: loss usually slows over time, and water can move your weight 1 to 2 kg from day to day.</p>
+      </div>
+
+      {!d.paused && (
+        <div className="card rise" style={{ animationDelay: '.1s' }}>
+          <h3>{d.enabled ? 'Your pace' : 'Set up a calorie deficit'}</h3>
+          {!d.weightKg && (
+            <div className="field"><label htmlFor="df-w">Your weight now ({unit})</label><input id="df-w" className="input" inputMode="decimal" value={w} onChange={(e) => setW(e.target.value)} placeholder={u === 'imperial' ? 'e.g. 170' : 'e.g. 78'} /></div>
+          )}
+          <div role="radiogroup" aria-label="Pace" className="col" style={{ gap: 8, marginTop: 6 }}>
+            {d.paces.map((x) => (
+              <button key={x.id} role="radio" aria-checked={x.id === sel} className={`pill-opt ${x.id === sel ? 'on' : ''}`} onClick={() => setPace(x.id)}>
+                <div className="row between"><b>{x.label} · {Math.round(x.pct * 100)}%</b><span className="num small">{x.target.toLocaleString()} kcal a day</span></div>
+                <div className="xs muted">{x.note}. About {u === 'imperial' ? `${Math.round(x.weeklyKg * 2.2046 * 10) / 10} lb` : `${x.weeklyKg} kg`} a week.</div>
+              </button>
+            ))}
+          </div>
+          <div className="field" style={{ marginTop: 10 }}><label htmlFor="df-t">Target weight ({unit}), optional</label><input id="df-t" className="input" inputMode="decimal" value={tgt} onChange={(e) => setTarget(e.target.value)} placeholder="Leave empty if you just want a steady pace" /></div>
+          {err && <p className="small" style={{ color: 'var(--coral)' }}>{err}</p>}
+          <Btn block disabled={busy || (!d.weightKg && !w)} onClick={() => save(true)} style={{ marginTop: 6 }}>{d.enabled ? 'Save changes' : 'Start my calorie deficit'}</Btn>
+          {d.enabled && <Btn block kind="plain" disabled={busy} onClick={() => save(false)} style={{ marginTop: 6 }}>Turn off, eat at maintenance</Btn>}
+        </div>
+      )}
+
+      {d.enabled && d.projection && (
+        <div className="card tint rise">
+          <div className="xs muted">At this pace</div>
+          <b>{wFmt(d.targetKg, u)} in about {d.projection.weeks} weeks</b>
+          <div className="small muted">Around {new Date(d.projection.date + 'T12:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}, if you hit your target most days. Most people take longer, and that is fine.</div>
+        </div>
+      )}
+
+      <div className="card rise">
+        <div className="row between"><h3>Last 7 days</h3><span className="xs muted">{d.week.loggedDays} fully logged</span></div>
+        <div className="list">
+          {d.days7.map((x) => (
+            <div key={x.date} className="kv">
+              <span>{dayName(x.date)} {shortDate(x.date)}<div className="xs faint">{x.meals} of {d.today.usual} meals · maintenance {x.tdee.toLocaleString()}</div></span>
+              {x.complete ? <b className="num" style={{ color: x.deficit >= 0 ? 'var(--green)' : 'var(--coral)' }}>{x.deficit >= 0 ? `−${x.deficit}` : `+${-x.deficit}`} kcal</b> : <span className="xs muted">Not fully logged</span>}
+            </div>
+          ))}
+        </div>
+        <p className="xs muted" style={{ marginBottom: 0 }}>{d.week.loggedDays ? `On fully logged days you averaged ${d.week.avgDaily >= 0 ? `${d.week.avgDaily} kcal under` : `${-d.week.avgDaily} kcal over`} maintenance, about ${u === 'imperial' ? `${Math.round(d.week.estKg * 2.2046 * 10) / 10} lb` : `${d.week.estKg} kg`} in total.` : 'Only days with all your usual meals logged (or most of the day\'s food) count, so half-logged days do not look like big deficits.'}</p>
+      </div>
+
+      <div className="card rise">
+        <h3>Weight</h3>
+        <div className="row" style={{ gap: 8 }}>
+          <input className="input" inputMode="decimal" aria-label={`Today's weight in ${unit}`} placeholder={`Today's weight (${unit})`} value={newW} onChange={(e) => setNewW(e.target.value)} />
+          <Btn sm disabled={!newW} onClick={async () => { try { await act('logWeight', { kg: wIn(newW, u) }, 'Weight saved'); setNewW(''); } catch (e) { toast(e.message); } }}>Save</Btn>
+        </div>
+        {d.weightLog.length > 1 && <Spark values={d.weightLog.map((x) => x.kg)} w={300} h={50} />}
+        <div className="list" style={{ marginTop: 6 }}>
+          {d.weightLog.slice(-5).reverse().map((x) => <div key={x.date} className="kv"><span>{shortDate(x.date)}</span><b className="num">{wFmt(x.kg, u)}</b></div>)}
+        </div>
+        <p className="xs muted" style={{ marginBottom: 0 }}>Weigh in the morning, after the bathroom, a few times a week. Look at the trend, not single days.</p>
+      </div>
+      <p className="xs muted">Health Track is a wellness app, not medical advice. If you have a health condition or take medication, check with your doctor before cutting calories.</p>
     </div>
   );
 }

@@ -106,7 +106,7 @@ export function computeCore(data, wear, date) {
   const activity = activityScore({ profile: p, stepsByDate, workouts, today: date, hasSteps });
   const steps14 = [];
   for (let i = 1; i <= 14; i++) if (stepsByDate[addDays(date, -i)] != null) steps14.push(stepsByDate[addDays(date, -i)]);
-  const en = energyNeed(p, date, steps14.length ? mean(steps14) : null, activity?.mvpa7 ?? 0);
+  const en = energyNeed(p, date, steps14.length ? mean(steps14) : null, activity?.mvpa7 ?? 0, data.cycle?.lifeStage);
   const bed = bedtimeMin(p, nights);
   const proteinTarget = data.train.plan?.proteinGPerKg || 1.2;
   const nutrition = nutritionScore({ profile: p, meals: day.meals || [], caffeine: day.caffeine || [], alcohol: day.alcohol || 0, need: en.need, bedtimeMin: bed, proteinTarget });

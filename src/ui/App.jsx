@@ -3,7 +3,7 @@ import { AppCtx, Icon, asset, useHold, Sheet } from './kit.jsx';
 import { Splash, Welcome, Trial, Auth, WelcomeBack } from './screens/welcome.jsx';
 import { Onboarding, SetupEdit } from './screens/onboarding.jsx';
 import { Today, CheckinSheet, Baseline } from './screens/today.jsx';
-import { Insights, StatusExplained, SleepDetail, RecoveryDetail, Nutrition } from './screens/insights.jsx';
+import { Insights, StatusExplained, SleepDetail, RecoveryDetail, Nutrition, Deficit } from './screens/insights.jsx';
 import { LogSheet, FoodPhoto, WaterCaffeine, VoiceLog } from './screens/log.jsx';
 import { Genie, Memory, VoiceGenie } from './screens/genie.jsx';
 import { Progress, Goals, WeeklyReview } from './screens/progress.jsx';
@@ -14,7 +14,7 @@ import { Profile, Devices, Privacy, DeleteAccount, Plans, CancelOffer, About } f
 
 const ROUTES = {
   today: Today, insights: Insights, genie: Genie, progress: Progress, profile: Profile,
-  status: StatusExplained, sleep: SleepDetail, recovery: RecoveryDetail, nutrition: Nutrition,
+  status: StatusExplained, deficit: Deficit, sleep: SleepDetail, recovery: RecoveryDetail, nutrition: Nutrition,
   food: FoodPhoto, water: WaterCaffeine, voice: VoiceLog, baseline: Baseline,
   memory: Memory, 'genie-voice': VoiceGenie, goals: Goals, review: WeeklyReview,
   train: Train, logger: SetLogger, live: LiveActivity, history: WorkoutHistory, 'workout-new': ManualWorkout,
@@ -22,7 +22,7 @@ const ROUTES = {
   labs: Labs, 'lab-upload': LabUpload, marker: MarkerDetail, cycle: Cycle, 'cycle-log': CycleLog,
   setup: SetupEdit, devices: Devices, privacy: Privacy, 'delete-account': DeleteAccount, plans: Plans, cancel: CancelOffer, about: About,
 };
-const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
+const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', deficit: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
 const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
 
 // Keeps one broken screen from blanking the whole app.

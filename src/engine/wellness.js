@@ -1,3 +1,4 @@
+import { deficitPlan } from './deficit.js';
 // Daily Wellness Status engine: formulas F1 to F7 (PRD v4 section 6).
 // Plain arithmetic, deterministic and versioned. Same inputs + same version = same number.
 
@@ -231,7 +232,7 @@ export function activityScore({ profile, stepsByDate, workouts, today, hasSteps 
 }
 
 // ---------------- F5 nutrition ----------------
-export function energyNeed(profile, today, avgSteps, mvpa7) {
+export function energyNeed(profile, today, avgSteps, mvpa7, lifeStage) {
   const age = ageFrom(profile.dob, today);
   const kg = profile.weightKg || 70;
   const cm = profile.heightCm || 170;
@@ -241,10 +242,14 @@ export function energyNeed(profile, today, avgSteps, mvpa7) {
   const afSteps = avgSteps == null ? 1.2 : avgSteps < 5000 ? 1.2 : avgSteps < 7500 ? 1.375 : avgSteps < 10000 ? 1.55 : 1.725;
   const afM = mvpa7 < 60 ? 1.2 : mvpa7 < 150 ? 1.375 : mvpa7 < 300 ? 1.55 : 1.725;
   const AF = Math.max(afSteps, afM); // F5.2
-  const safety = profile.edFlag || profile.pregnant || age < 18;
-  const g = safety ? 1.0 : profile.weightGoal === 'lose' ? 0.9 : profile.weightGoal === 'gain' ? 1.1 : 1.0;
+  const safety = profile.edFlag || profile.pregnant || age < 18 || lifeStage === 'postpartum';
   const floor = profile.sex === 'male' ? 1500 : 1200;
-  return { REE: round(REE), AF, g, need: round(Math.max(floor, REE * AF * g)) }; // F5.3
+  if (!safety && profile.weightGoal === 'lose') {
+    const plan = deficitPlan({ REE, AF, sex: profile.sex, weightKg: profile.weightKg, pace: profile.deficitPace || 'gentle' });
+    return { REE: round(REE), AF, g: round(plan.target / (REE * AF), 3), need: Math.max(floor, plan.target), tdee: plan.tdee };
+  }
+  const g = safety ? 1.0 : profile.weightGoal === 'gain' ? 1.1 : 1.0;
+  return { REE: round(REE), AF, g, need: round(Math.max(floor, REE * AF * g)), tdee: round(REE * AF) }; // F5.3
 }
 
 export function nutritionScore({ profile, meals, caffeine, alcohol, need, bedtimeMin, proteinTarget }) {

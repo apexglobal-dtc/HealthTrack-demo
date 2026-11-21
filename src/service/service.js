@@ -13,6 +13,7 @@ import { FOODS, findFood, searchFoods, matchFood, mealTotals, nutrientsFor } fro
 import { redFlag, SAFETY_RESPONSES, postCheck, buildPrompt, stubReply } from '../engine/genie.js';
 import { DEVICE_CATALOG, deviceById, simulatedPeriods, simulateStrengthHistory } from '../engine/simulate.js';
 import { dayFacts, planByCategory, buildCheckins } from './dayplan.js';
+import { PACES, deficitPlan, deficitSafety, dayDeficit, weekSummary, projection, calorieFloor } from '../engine/deficit.js';
 import { computeCore, buildToday, mergeSources, todaysPlanned, nextTrainingDay, mealIdea, factsFor } from './compute.js';
 
 export const PRICING = {
@@ -480,6 +481,76 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     };
   }
 
+  // ---------------- Calorie deficit ----------------
+  async function deficit(u) {
+    const { data, wear } = await ctx(u);
+    const t = today();
+    const p = data.profile;
+    const c = computeCore(data, wear, t);
+    const safety = deficitSafety({ profile: p, age: ageFrom(p.dob, t), lifeStage: data.cycle?.lifeStage });
+    if (safety?.hidden) return { hidden: true, reason: safety.reason };
+    const pace = PACES[p.deficitPace] ? p.deficitPace : 'gentle';
+    const plan = deficitPlan({ REE: c.en.REE, AF: c.en.AF, sex: p.sex, weightKg: p.weightKg, pace });
+    const paceOptions = Object.values(PACES).map((x) => ({ ...x, ...deficitPlan({ REE: c.en.REE, AF: c.en.AF, sex: p.sex, weightKg: p.weightKg, pace: x.id }) }));
+    const kcalOf = (meals, k) => sum(meals.map((m) => m[k] ?? m.kcal ?? 0));
+    const meals = c.day.meals || [];
+    const usual = p.usualMeals || 3;
+    const eaten = { low: round(kcalOf(meals, 'kcalLow')), high: round(kcalOf(meals, 'kcalHigh')), kcal: round(kcalOf(meals, 'kcal')), meals: meals.length, usual };
+    const days7 = [];
+    for (let i = 7; i >= 1; i--) {
+      const d = addDays(t, -i);
+      const dm = data.days[d]?.meals || [];
+      const cd = computeCore(data, wear, d);
+      const tdee = round(cd.en.REE * cd.en.AF);
+      const kcal = round(kcalOf(dm, 'kcal'));
+      const complete = dm.length >= usual || (dm.length >= 2 && kcal >= 0.6 * tdee); // all usual meals, or most of the day's food clearly logged
+      days7.push({ date: d, tdee, kcal, meals: dm.length, complete, deficit: complete ? tdee - kcal : null });
+    }
+    const week = weekSummary(days7);
+    const log = (p.weightLog?.length ? p.weightLog : p.weightKg ? [{ date: p.createdAt || t, kg: p.weightKg }] : []).slice(-30);
+    const enabled = p.weightGoal === 'lose' && !safety;
+    return {
+      hidden: false, paused: !!safety, pausedReason: safety?.reason || null, enabled, pace, paces: paceOptions, plan, floor: calorieFloor(p.sex),
+      today: { ...eaten, deficit: meals.length ? dayDeficit({ tdee: plan.tdee, kcalLow: eaten.low, kcalHigh: eaten.high }) : null, left: round(plan.target - eaten.kcal), complete: meals.length >= usual },
+      days7, week, weightKg: p.weightKg || null, targetKg: p.targetWeightKg || null, units: p.units || 'metric', weightLog: log,
+      projection: enabled ? projection({ weightKg: p.weightKg, targetKg: p.targetWeightKg, daily: plan.daily, today: t }) : null,
+      startedAt: p.deficitStartedAt || null,
+    };
+  }
+  async function setDeficitGoal(u, { enabled, pace, targetKg, weightKg }) {
+    const p = await store.get(u, 'profile');
+    const t = today();
+    if (weightKg != null && weightKg !== '') {
+      const w = Number(weightKg);
+      if (!(w >= 30 && w <= 300)) throw new Error('Please enter a weight between 30 and 300 kg.');
+      if (w !== p.weightKg) { p.weightKg = w; p.weightLog = [...(p.weightLog || []).filter((x) => x.date !== t), { date: t, kg: w }].slice(-120); }
+    }
+    if (enabled === false) { p.weightGoal = 'maintain'; }
+    else {
+      if (!p.weightKg) throw new Error('Add your current weight first.');
+      p.weightGoal = 'lose';
+      if (PACES[pace]) p.deficitPace = pace;
+      if (!p.deficitStartedAt) p.deficitStartedAt = t;
+    }
+    if (targetKg !== undefined) {
+      const tk = targetKg === '' || targetKg == null ? null : Number(targetKg);
+      if (tk != null && !(tk >= 30 && tk < (p.weightKg || 300))) throw new Error('A target weight needs to be below your current weight.');
+      p.targetWeightKg = tk;
+    }
+    await save(u, 'profile', p);
+    return deficit(u);
+  }
+  async function logWeight(u, { kg }) {
+    const w = Number(kg);
+    if (!(w >= 30 && w <= 300)) throw new Error('Please enter a weight between 30 and 300 kg.');
+    const p = await store.get(u, 'profile');
+    const t = today();
+    p.weightKg = w;
+    p.weightLog = [...(p.weightLog || []).filter((x) => x.date !== t), { date: t, kg: w }].slice(-120);
+    await save(u, 'profile', p);
+    return { ok: true };
+  }
+
   // ---------------- Health Genie ----------------
   async function geniePacket(u) {
     const { data, wear } = await ctx(u);
@@ -932,7 +1003,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     insights, sleepDetail, recoveryDetail, nutritionDay, genieChat, genieStream, genieAction, flagAnswer, getMemory, updateMemory, geniePacket,
     progress, updateGoals, train, setTrainingGoal, logSet, logWorkout, deleteWorkout, overrideSession, logFitnessTest,
     labs, readLabReport, confirmLabs, cycle, setCycle, logCycleDay, deleteCycleData,
-    profileHub, saveProfile, updateSetup, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
+    profileHub, saveProfile, updateSetup, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
   };
 }
 
