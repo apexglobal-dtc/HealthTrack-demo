@@ -16,6 +16,6 @@ export const PUBLIC_METHODS = new Set([
   'insights', 'sleepDetail', 'recoveryDetail', 'nutritionDay', 'genieChat', 'genieStream', 'genieAction', 'flagAnswer', 'getMemory', 'updateMemory',
   'progress', 'updateGoals', 'train', 'setTrainingGoal', 'logSet', 'logWorkout', 'deleteWorkout', 'overrideSession', 'logFitnessTest',
   'labs', 'readLabReport', 'confirmLabs', 'cycle', 'setCycle', 'logCycleDay', 'deleteCycleData',
-  'profileHub', 'saveProfile', 'devices', 'devicesCatalog', 'connectDevice', 'disconnectDevice', 'exportData', 'deleteAccount', 'subscription', 'phoneEstimate', 'baseline',
+  'profileHub', 'saveProfile', 'updateSetup', 'devices', 'devicesCatalog', 'connectDevice', 'disconnectDevice', 'exportData', 'deleteAccount', 'subscription', 'phoneEstimate', 'baseline',
   'seedDemoPersona',
 ]);

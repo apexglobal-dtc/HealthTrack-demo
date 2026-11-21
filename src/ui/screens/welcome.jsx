@@ -209,3 +209,18 @@ function VerifyCode({ email, info, onBack, onDone }) {
     </div>
   );
 }
+
+// Shown after a returning user signs in: offer a quick look at profile and preferences, or go straight to Today.
+export function WelcomeBack({ name, onYes, onNo }) {
+  return (
+    <div className="scroll noNav" style={{ paddingTop: 70 }}>
+      <div className="rise center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <img src={asset('logo.png')} alt="Health Track" style={{ width: 180, maxWidth: '70%' }} />
+        <h1 className="page" style={{ marginTop: 28 }}>Welcome back{name ? `, ${name}` : ''}</h1>
+        <p className="muted" style={{ fontSize: 17, margin: '8px 0 28px' }}>Would you like to make any changes to your profile or preferences?</p>
+        <Btn block onClick={onNo}>No, take me to Today</Btn>
+        <button className="btn block" onClick={onYes} style={{ marginTop: 10, height: 52, borderRadius: 99, background: 'var(--surface)', color: 'var(--text)' }}>Yes, review my profile</button>
+      </div>
+    </div>
+  );
+}

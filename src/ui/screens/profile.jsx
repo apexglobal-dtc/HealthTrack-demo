@@ -31,6 +31,7 @@ export function Profile() {
       </button>
       <div className="card">
         <div className="list">
+          <Item icon="user" color="var(--violet)" tint="var(--tint-violet)" title="Profile and preferences" sub={p.setupSkipped?.length ? `${p.setupSkipped.length} setup step${p.setupSkipped.length > 1 ? 's' : ''} left to finish` : 'About you, sleep rhythm, food and routine'} onClick={() => go('setup')} />
           <Item icon="watch" title="Devices and data sources" sub={h.devices.filter((d) => d.connected).map((d) => d.name).join(', ') || 'Phone only'} to="devices" />
           <Item icon="file" color="var(--navy)" tint="var(--tint-blue)" title="Biomarkers" sub={h.labsCount ? `${h.labsCount} values from your lab reports` : 'Upload a lab PDF'} to="labs" />
           {p.sex !== 'male' && <Item icon="calendar" color="var(--coral)" tint="var(--tint-coral)" title="Cycle" sub={h.cycleEnabled ? 'Tracking on' : 'Off'} to="cycle" />}

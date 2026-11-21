@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppCtx, Icon, asset, useHold, Sheet } from './kit.jsx';
-import { Splash, Welcome, Trial, Auth } from './screens/welcome.jsx';
-import { Onboarding } from './screens/onboarding.jsx';
+import { Splash, Welcome, Trial, Auth, WelcomeBack } from './screens/welcome.jsx';
+import { Onboarding, SetupEdit } from './screens/onboarding.jsx';
 import { Today, CheckinSheet, Baseline } from './screens/today.jsx';
 import { Insights, StatusExplained, SleepDetail, RecoveryDetail, Nutrition } from './screens/insights.jsx';
 import { LogSheet, FoodPhoto, WaterCaffeine, VoiceLog } from './screens/log.jsx';
@@ -20,10 +20,10 @@ const ROUTES = {
   train: Train, logger: SetLogger, live: LiveActivity, history: WorkoutHistory, 'workout-new': ManualWorkout,
   fitness: FitnessScore, load: LoadBalance, 'train-setup': TrainingSetup,
   labs: Labs, 'lab-upload': LabUpload, marker: MarkerDetail, cycle: Cycle, 'cycle-log': CycleLog,
-  devices: Devices, privacy: Privacy, 'delete-account': DeleteAccount, plans: Plans, cancel: CancelOffer, about: About,
+  setup: SetupEdit, devices: Devices, privacy: Privacy, 'delete-account': DeleteAccount, plans: Plans, cancel: CancelOffer, about: About,
 };
 const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
-const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food']);
+const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
 
 function systemMode() {
   if (typeof document === 'undefined') return 'day';
@@ -111,13 +111,14 @@ export default function App({ platform }) {
 
   const hold = useHold(() => setRadial(true), () => go('genie'));
   const Screen = ROUTES[route] || Today;
-  const tab = TAB_OF[route] || (['profile', 'devices', 'privacy', 'delete-account', 'plans', 'cancel', 'labs', 'lab-upload', 'marker', 'cycle', 'cycle-log', 'about'].includes(route) ? 'profile' : 'today');
+  const tab = TAB_OF[route] || (['profile', 'setup', 'devices', 'privacy', 'delete-account', 'plans', 'cancel', 'labs', 'lab-upload', 'marker', 'cycle', 'cycle-log', 'about'].includes(route) ? 'profile' : 'today');
 
   let body;
   if (phase === 'splash') body = <Splash />;
   else if (phase === 'welcome') body = <Welcome onSignUp={() => { setPhase('trial'); }} onSignIn={() => { setAuthMode('signin'); setPhase('auth'); }} onDemo={async () => { await auth.demo(); await refreshBoot(); go('today'); setPhase('app'); }} />;
   else if (phase === 'trial') body = <Trial onContinue={(billing) => { setPendingTrial(billing); setAuthMode('signup'); setPhase('auth'); }} onBack={() => setPhase('welcome')} />;
-  else if (phase === 'auth') body = <Auth mode={authMode} setMode={setAuthMode} onBack={() => setPhase('welcome')} onDone={async () => { const b = await refreshBoot(); setPhase(b?.profile ? 'app' : 'onboarding'); }} />;
+  else if (phase === 'auth') body = <Auth mode={authMode} setMode={setAuthMode} onBack={() => setPhase('welcome')} onDone={async () => { const b = await refreshBoot(); setPhase(b?.profile ? (authMode === 'signin' ? 'welcomeBack' : 'app') : 'onboarding'); }} />;
+  else if (phase === 'welcomeBack') body = <WelcomeBack name={boot?.profile?.name} onYes={() => { go('profile'); setPhase('app'); }} onNo={() => { go('today'); setPhase('app'); }} />;
   else if (phase === 'onboarding') body = <Onboarding trialBilling={pendingTrial} onDone={async () => { await refreshBoot(); go('today'); setPhase('app'); }} />;
   else {
     body = (

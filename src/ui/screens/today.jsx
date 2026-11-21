@@ -4,7 +4,7 @@ import { Ring, CountUp, MiniRing, CapsuleBars } from '../viz.jsx';
 import { CheckinFields } from './onboarding.jsx';
 
 export function Today() {
-  const { go, openSheet, act, toast, call, bump } = useApp();
+  const { go, openSheet, act, toast, call, bump, boot } = useApp();
   const { data: t, error, loading } = useLoad('getToday');
   const [why, setWhy] = useState(false);
   if (error) return <ErrorBox error={error} />;
@@ -173,6 +173,14 @@ export function Today() {
       )}
 
       {t.evening && <EveningCard />}
+
+      {boot?.profile?.setupSkipped?.length > 0 && (
+        <button className="card flat row" style={{ textAlign: 'left' }} onClick={() => go('setup', { only: boot.profile.setupSkipped, back: 'today' })}>
+          <span className="ico" style={{ background: 'var(--tint-violet)', color: 'var(--violet)' }}><Icon name="user" /></span>
+          <span style={{ flex: 1 }}><b className="small">Finish setting up</b><div className="xs muted">{boot.profile.setupSkipped.length} step{boot.profile.setupSkipped.length > 1 ? 's' : ''} skipped. A couple of minutes makes your numbers more personal.</div></span>
+          <Icon name="chev" />
+        </button>
+      )}
 
       <button className="card flat row" style={{ textAlign: 'left' }} onClick={() => go('genie')}>
         <span className="genie-orb" style={{ width: 40, height: 40, margin: 0 }}><img src={(window.__HT_ASSETS__?.['genie.png']) || '/assets/genie.png'} alt="" /></span>

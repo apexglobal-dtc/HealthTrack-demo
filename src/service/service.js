@@ -91,7 +91,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       activityLevel: ob.activityLevel || 'moderate', workoutsPerWeek: ob.workoutsPerWeek ?? 3, usualMeals: ob.usualMeals || 3,
       mealTimes: ob.mealTimes || { breakfast: '07:30', lunch: '12:30', dinner: '19:00' }, allergies: ob.allergies || [], diet: ob.diet || 'none',
       edFlag: !!ob.edFlag, edScreenPassed: !ob.edFlag, consents: ob.consents || {}, seed: ob.seed || uid('seed'), createdAt: t,
-      subscription: { plan: 'none' }, theme: 'system', weightGoal: ob.weightGoal || 'maintain',
+      subscription: { plan: 'none' }, theme: 'system', weightGoal: ob.weightGoal || 'maintain', setupSkipped: Array.isArray(ob.setupSkipped) ? ob.setupSkipped.slice(0, 10) : [],
     };
     if (ob.cycle === 'yes' && ob.sex !== 'male') {
       profile.simPeriods = simulatedPeriods(profile.seed, t, 3);
@@ -102,6 +102,41 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     await save(u, 'devices', devices);
     await save(u, 'memory', { goals: profile.goals.map((g) => ({ id: uid('m'), text: g })), constraints: [...profile.allergies.map((a) => ({ id: uid('m'), text: `Allergy: ${a}` })), ...(ob.injuries ? [{ id: uid('m'), text: ob.injuries }] : [])], preferences: { tone: 'gentle' }, notes: [] });
     if (ob.checkin) await checkin(u, ob.checkin);
+    return bootstrap(u);
+  }
+
+  // Returning users finish or change the setup answers later (the same screens as onboarding).
+  async function updateSetup(u, ob) {
+    const p = await store.get(u, 'profile');
+    if (!p) throw new Error('Please finish sign-up first');
+    const t = today();
+    const keys = ['name', 'dob', 'sex', 'units', 'goals', 'struggles', 'shiftWork', 'pregnant', 'activityLevel', 'workoutsPerWeek', 'usualMeals', 'allergies', 'diet', 'consents'];
+    for (const k of keys) if (k in ob && ob[k] !== '' && ob[k] != null) p[k] = ob[k];
+    if (ob.name != null) p.name = String(ob.name).trim() || p.name;
+    if (ob.heightCm) p.heightCm = Number(ob.heightCm) || p.heightCm;
+    if ('weightKg' in ob) p.weightKg = ob.weightKg ? Number(ob.weightKg) : null;
+    if (ob.bedtime) p.usualBedMin = clockToMin(ob.bedtime);
+    if (ob.wake) p.usualWakeMin = clockToMin(ob.wake);
+    if (Array.isArray(ob.setupSkipped)) p.setupSkipped = ob.setupSkipped.slice(0, 10);
+    if (Array.isArray(ob.devices)) {
+      const old = (await store.get(u, 'devices')) || [];
+      const devs = ob.devices.map((id) => old.find((d) => d.id === id) || { id, name: deviceById(id)?.name || id, connected: true, provider: 'simulated', connectedAt: t });
+      await save(u, 'devices', devs);
+    }
+    if (ob.cycle === 'yes' && p.sex !== 'male') {
+      const c = await store.get(u, 'cycle');
+      if (!c?.enabled) {
+        p.simPeriods = p.simPeriods || simulatedPeriods(p.seed, t, 3);
+        await save(u, 'cycle', { ...(c || { flow: {}, symptoms: {} }), enabled: true, storage: ob.cycleStorage || 'device', lifeStage: ob.lifeStage || 'none', typicalLength: Number(ob.typicalLength) || 29, periods: c?.periods?.length ? c.periods : p.simPeriods.slice(-1) });
+      }
+    }
+    await save(u, 'profile', p);
+    if (Array.isArray(ob.goals) || Array.isArray(ob.allergies)) {
+      const m = (await store.get(u, 'memory')) || { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] };
+      if (Array.isArray(ob.goals)) m.goals = p.goals.map((g) => m.goals.find((x) => x.text === g) || { id: uid('m'), text: g });
+      if (Array.isArray(ob.allergies)) m.constraints = [...m.constraints.filter((c) => !/^Allergy: /.test(c.text)), ...p.allergies.map((a) => ({ id: uid('m'), text: `Allergy: ${a}` }))];
+      await save(u, 'memory', m);
+    }
     return bootstrap(u);
   }
 
@@ -818,7 +853,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
   }
   async function saveProfile(u, patch) {
     const p = await store.get(u, 'profile');
-    const allowed = ['name', 'dob', 'sex', 'heightCm', 'weightKg', 'units', 'theme', 'usualMeals', 'allergies', 'diet', 'sleepNeedH', 'shiftWork', 'pregnant', 'sourceOverrides', 'hideLockNumbers', 'consents', 'weightGoal'];
+    const allowed = ['setupSkipped', 'name', 'dob', 'sex', 'heightCm', 'weightKg', 'units', 'theme', 'usualMeals', 'allergies', 'diet', 'sleepNeedH', 'shiftWork', 'pregnant', 'sourceOverrides', 'hideLockNumbers', 'consents', 'weightGoal'];
     for (const k of allowed) if (k in patch) p[k] = patch[k];
     if ('bedtime' in patch) p.usualBedMin = clockToMin(patch.bedtime);
     await save(u, 'profile', p);
@@ -890,7 +925,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     insights, sleepDetail, recoveryDetail, nutritionDay, genieChat, genieStream, genieAction, flagAnswer, getMemory, updateMemory, geniePacket,
     progress, updateGoals, train, setTrainingGoal, logSet, logWorkout, deleteWorkout, overrideSession, logFitnessTest,
     labs, readLabReport, confirmLabs, cycle, setCycle, logCycleDay, deleteCycleData,
-    profileHub, saveProfile, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
+    profileHub, saveProfile, updateSetup, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
   };
 }
 

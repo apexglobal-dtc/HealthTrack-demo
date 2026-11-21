@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp, Icon, Btn, Toggle, Seg, asset, bandColor } from '../kit.jsx';
 import { Ring, CountUp } from '../viz.jsx';
+import { minToClock } from '../../engine/util.js';
 
 const GOALS = ['Sleep better', 'More energy', 'Lose weight', 'Build strength', 'Manage stress', 'Eat better', 'Get fitter', 'Feel balanced'];
 const STRUGGLES = ['I drink coffee late in the day', 'I sleep at odd times after shifts', 'I skip meals', 'I forget to drink water', 'I sit most of the day', 'I train hard without rest', 'I snack late at night'];
@@ -8,9 +9,29 @@ const ALLERGIES = ['Peanuts', 'Tree nuts', 'Dairy', 'Gluten', 'Shellfish', 'Eggs
 const DIETS = [['none', 'No preference'], ['vegetarian', 'Vegetarian'], ['vegan', 'Vegan'], ['pescatarian', 'Pescatarian'], ['halal', 'Halal'], ['kosher', 'Kosher']];
 const CONSENTS = [['sleep', 'Sleep', 'moon', 'Nights, stages and timing'], ['heart', 'Heart', 'heart', 'Resting heart rate and HRV'], ['activity', 'Activity', 'pulse', 'Steps, workouts and heart-rate zones'], ['nutrition', 'Nutrition', 'leaf', 'Meals, water and caffeine you log']];
 
-export function Onboarding({ trialBilling, onDone }) {
-  const { call, info } = useApp();
-  const [step, setStep] = useState(0);
+// Profile fields as onboarding answers, so a returning user edits what they gave before.
+function answersFromProfile(p) {
+  if (!p) return {};
+  const o = {};
+  for (const k of ['goals', 'struggles', 'name', 'dob', 'sex', 'heightCm', 'units', 'shiftWork', 'pregnant', 'activityLevel', 'workoutsPerWeek', 'usualMeals', 'allergies', 'diet', 'consents']) if (p[k] != null) o[k] = p[k];
+  o.weightKg = p.weightKg ?? '';
+  if (p.usualBedMin != null) o.bedtime = minToClock(p.usualBedMin);
+  if (p.usualWakeMin != null) o.wake = minToClock(p.usualWakeMin);
+  return o;
+}
+
+// Setup screens for a signed-in user: all of them, or only the ones they skipped (route params.only).
+export function SetupEdit() {
+  const { go, boot, refreshBoot, toast, params } = useApp();
+  return <Onboarding edit={{ profile: boot?.profile, only: params?.only }} onDone={async () => { await refreshBoot(); toast('Saved'); go(params?.back || 'profile'); }} />;
+}
+
+export function Onboarding({ trialBilling, onDone, edit }) {
+  const { call, info, go } = useApp();
+  const DRAFT = 'ht-onboarding-draft';
+  const draft = edit ? null : (() => { try { return JSON.parse(localStorage.getItem(DRAFT) || 'null'); } catch (e) { return null; } })();
+  const [step, setStep] = useState(draft?.step || 0);
+  const [skipped, setSkipped] = useState(draft?.skipped || []);
   const [catalog, setCatalog] = useState([]);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,16 +44,33 @@ export function Onboarding({ trialBilling, onDone }) {
     activityLevel: 'moderate', workoutsPerWeek: 3, usualMeals: 3, allergies: [], diet: 'none',
     cycle: null, typicalLength: 29, cycleStorage: 'device',
     checkin: { energy: 3, soreness: 2, stress: 3, mood: 3, sleepQuality: 3, sleepHours: 7 },
+    ...(draft?.ob || {}),
+    ...(edit ? answersFromProfile(edit.profile) : {}),
   });
   const set = (k, v) => setOb((o) => ({ ...o, [k]: v }));
   const toggleIn = (k, v, max = 99) => setOb((o) => ({ ...o, [k]: o[k].includes(v) ? o[k].filter((x) => x !== v) : o[k].length >= max ? o[k] : [...o[k], v] }));
 
   useEffect(() => { call('devicesCatalog').then(setCatalog).catch(() => setCatalog([])); }, []);
+  useEffect(() => {
+    if (!edit) return;
+    call('devices').then((d) => { const ids = (d.devices || []).filter((x) => x.connected).map((x) => x.id); setOb((o) => ({ ...o, devices: ids, phoneOnly: ids.length === 0 })); }).catch(() => {});
+    call('cycle').then((c) => { if (c?.enabled) setOb((o) => ({ ...o, cycle: 'yes' })); }).catch(() => {});
+  }, []);
 
   const showCycle = ob.sex !== 'male';
-  const steps = useMemo(() => ['goals', 'about', 'sources', 'consent', 'rhythm', 'routine', ...(showCycle ? ['cycle'] : []), 'checkin', 'reveal'], [showCycle]);
+  const steps = useMemo(() => {
+    const all = ['goals', 'about', 'sources', 'consent', 'rhythm', 'routine', ...(showCycle ? ['cycle'] : [])];
+    if (!edit) return [...all, 'checkin', 'reveal'];
+    const only = Array.isArray(edit.only) && edit.only.length ? all.filter((k) => edit.only.includes(k)) : all;
+    return [...(only.length ? only : all), 'save'];
+  }, [showCycle]);
   const cur = steps[step];
   const next = () => setStep((s) => Math.min(steps.length - 1, s + 1));
+  // keep progress so a person who leaves mid-way picks up where they stopped
+  useEffect(() => { if (!edit && cur !== 'reveal') { try { localStorage.setItem(DRAFT, JSON.stringify({ step, skipped, ob })); } catch (e) {} } }, [step, skipped, ob]);
+  const skip = () => { setSkipped((x) => [...new Set([...x, cur])]); next(); };
+  const isLast = edit && step === steps.length - 2;
+  const finishLater = () => { setSkipped((x) => [...new Set([...x, ...steps.slice(step, -1)])]); setStep(steps.length - 1); };
   const back = () => setStep((s) => Math.max(0, s - 1));
 
   const canNext = {
@@ -45,7 +83,17 @@ export function Onboarding({ trialBilling, onDone }) {
   async function finish() {
     setBusy(true); setErr(null);
     try {
-      await call('completeOnboarding', { ...ob, checkin: ob.phoneOnly ? ob.checkin : { ...ob.checkin, sleepHours: undefined } });
+      const filled = {
+        ...ob,
+        name: ob.name.trim() || 'Friend',
+        sex: ob.sex || 'prefer_not',
+        phoneOnly: ob.phoneOnly || ob.devices.length === 0,
+        cycle: ob.cycle ?? 'later',
+        setupSkipped: skipped.filter((k) => k !== 'checkin'),
+      };
+      const ci = skipped.includes('checkin') ? undefined : (filled.phoneOnly ? ob.checkin : { ...ob.checkin, sleepHours: undefined });
+      await call('completeOnboarding', { ...filled, checkin: ci });
+      try { localStorage.removeItem(DRAFT); } catch (e) {}
       await call('subscription', { op: 'startTrial', billing: trialBilling || 'yearly' });
       const t = await call('getToday');
       setResult(t);
@@ -54,17 +102,42 @@ export function Onboarding({ trialBilling, onDone }) {
   }
   useEffect(() => { if (cur === 'reveal' && !result && !busy) finish(); }, [cur]);
 
+  async function saveEdit(extraSkipped = []) {
+    setBusy(true); setErr(null);
+    try {
+      const prev = edit.profile?.setupSkipped || [];
+      const visited = steps.slice(0, -1);
+      const nowSkipped = [...new Set([...skipped, ...extraSkipped])];
+      const setupSkipped = [...new Set([...prev.filter((k) => !visited.includes(k)), ...nowSkipped])].filter((k) => k !== 'checkin');
+      const done = (k) => !nowSkipped.includes(k);
+      const patch = { setupSkipped };
+      if (done('goals') && visited.includes('goals')) Object.assign(patch, { goals: ob.goals, struggles: ob.struggles });
+      if (done('about') && visited.includes('about')) Object.assign(patch, { name: ob.name, dob: ob.dob, sex: ob.sex, heightCm: ob.heightCm, weightKg: ob.weightKg, units: ob.units });
+      if (done('sources') && visited.includes('sources')) patch.devices = ob.phoneOnly ? [] : ob.devices;
+      if (done('consent') && visited.includes('consent')) patch.consents = ob.consents;
+      if (done('rhythm') && visited.includes('rhythm')) Object.assign(patch, { bedtime: ob.bedtime, wake: ob.wake, shiftWork: ob.shiftWork, pregnant: ob.pregnant });
+      if (done('routine') && visited.includes('routine')) Object.assign(patch, { activityLevel: ob.activityLevel, workoutsPerWeek: ob.workoutsPerWeek, usualMeals: ob.usualMeals, allergies: ob.allergies, diet: ob.diet });
+      if (done('cycle') && visited.includes('cycle')) Object.assign(patch, { cycle: ob.cycle, typicalLength: ob.typicalLength, cycleStorage: ob.cycleStorage });
+      await call('updateSetup', patch);
+      await onDone();
+    } catch (e) { setErr(e.message || String(e)); setBusy(false); }
+  }
+  useEffect(() => { if (cur === 'save' && !busy) saveEdit(); }, [cur]);
+
   const filtered = catalog.filter((d) => d.id !== 'phone' && d.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div className="scroll noNav" style={{ paddingTop: 50 }}>
-      {cur !== 'reveal' && (
+      {cur !== 'reveal' && cur !== 'save' && (
         <>
           <div className="row between">
             {step > 0 ? <button className="back" style={{ margin: 0, width: 80 }} onClick={back}><Icon name="back" size={18} />Back</button> : <span style={{ width: 80 }} />}
             <span className="logo-chip"><img src={asset('logo.png')} alt="Health Track" /></span>
-            <span className="muted small" style={{ width: 80, textAlign: 'right' }}>Step {step + 1} of {steps.length - 1}</span>
+            {edit
+              ? <button className="link small" style={{ width: 80, textAlign: 'right' }} onClick={() => go('profile')}>Cancel</button>
+              : <button className="link small" style={{ width: 80, textAlign: 'right' }} onClick={finishLater}>Finish later</button>}
           </div>
+          <div className="xs muted" style={{ textAlign: 'center', marginTop: 6 }}>Step {step + 1} of {steps.length - 1}</div>
           <div className="steps-top" style={{ gridTemplateColumns: `repeat(${steps.length - 1}, 1fr)` }}>{steps.slice(0, -1).map((s, i) => <i key={s} className={i <= step ? 'on' : ''} />)}</div>
         </>
       )}
@@ -218,12 +291,18 @@ export function Onboarding({ trialBilling, onDone }) {
           </>
         )}
 
+        {cur === 'save' && (
+          <div className="center" style={{ paddingTop: 60 }}>
+            {err ? <><p className="muted">{err}</p><Btn onClick={() => saveEdit()}>Try again</Btn></> : <p className="muted">Saving your changes...</p>}
+          </div>
+        )}
         {cur === 'reveal' && <Reveal result={result} busy={busy} err={err} retry={finish} onDone={onDone} name={ob.name} />}
       </div>
 
-      {cur !== 'reveal' && (
+      {cur !== 'reveal' && cur !== 'save' && (
         <div style={{ position: 'sticky', bottom: 0, paddingTop: 16, paddingBottom: 8, marginTop: 20, background: 'linear-gradient(180deg, transparent, var(--bg) 40%)' }}>
-          <Btn block disabled={!canNext} onClick={next}>{cur === 'checkin' ? 'See my status' : 'Continue'}</Btn>
+          <Btn block disabled={!canNext} onClick={next}>{cur === 'checkin' ? 'See my status' : isLast ? 'Save changes' : 'Continue'}</Btn>
+          <Btn block kind="plain" style={{ marginTop: 8, height: 44, background: 'transparent' }} onClick={skip}>Skip, come back later</Btn>
         </div>
       )}
     </div>
