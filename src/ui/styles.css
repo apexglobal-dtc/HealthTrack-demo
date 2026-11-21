@@ -245,3 +245,17 @@ textarea.input { height: auto; padding: 12px 14px; }
 .pill-opt { flex: 1; border-radius: 20px; padding: 16px; border: 2px solid var(--line); background: var(--glass-strong); text-align: left; transition: transform .15s; }
 .pill-opt.on { border-color: var(--violet); background: var(--tint-violet); transform: scale(1.01); }
 @keyframes scan { 0%, 100% { top: 22%; } 50% { top: 74%; } }
+
+/* Today's plan: radio-style category picker */
+:where(.ht) .plan-cats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+:where(.ht) .plan-cats button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 2px 8px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); transition: transform .15s, border-color .15s, background .15s; }
+:where(.ht) .plan-cats button .ico { width: 30px; height: 30px; background: var(--t); color: var(--c); }
+:where(.ht) .plan-cats button .radio { position: absolute; top: 6px; right: 6px; width: 12px; height: 12px; border-radius: 99px; border: 1.5px solid var(--faint); }
+:where(.ht) .plan-cats button.on { border-color: var(--c); background: var(--t); transform: translateY(-1px); }
+:where(.ht) .plan-cats button.on .radio { border-color: var(--c); background: radial-gradient(circle, var(--c) 45%, transparent 50%); }
+/* Check-in time picker */
+:where(.ht) .checkin-times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+:where(.ht) .checkin-times button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 2px; border-radius: 12px; background: var(--surface2); color: var(--muted); border: 1.5px solid transparent; }
+:where(.ht) .checkin-times button.now { color: var(--violet); }
+:where(.ht) .checkin-times button.past { opacity: .8; }
+:where(.ht) .checkin-times button.on { background: var(--tint-violet); border-color: var(--violet); color: var(--violet); }

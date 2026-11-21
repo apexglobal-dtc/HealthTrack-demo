@@ -63,7 +63,7 @@ function shrink(file) {
   });
 }
 
-function FoodReview({ result, source, image, onDone, onRetry }) {
+function FoodReview({ result, source, image, onDone, onRetry, meal }) {
   const { act, toast, call } = useApp();
   const [items, setItems] = useState(() => result.items.map((i) => ({ ...i, size: 'M' })));
   const [usual, setUsual] = useState(false);
@@ -108,7 +108,7 @@ function FoodReview({ result, source, image, onDone, onRetry }) {
       </div>
       <label className="row small"><input type="checkbox" checked={usual} onChange={(e) => setUsual(e.target.checked)} style={{ accentColor: 'var(--violet)', width: 18, height: 18 }} />Save as a usual meal</label>
       <Btn block disabled={!items.length} onClick={async () => {
-        const r = await act('logMeal', { items: items.map((i) => ({ foodId: i.foodId, grams: grams(i), gramsLow: i.gramsLow, gramsHigh: i.gramsHigh, confidence: i.confidence })), confirmed: true, source, saveAsUsual: usual });
+        const r = await act('logMeal', { items: items.map((i) => ({ foodId: i.foodId, grams: grams(i), gramsLow: i.gramsLow, gramsHigh: i.gramsHigh, confidence: i.confidence })), confirmed: true, source, saveAsUsual: usual, ...(meal ? { name: meal } : {}) });
         toast(`Logged ${r.kcalLow !== r.kcalHigh ? `${r.kcalLow}–${r.kcalHigh}` : Math.round(r.kcal)} kcal, ${Math.round(r.protein)} g protein`);
         onDone();
       }}>Log this meal</Btn>
@@ -118,7 +118,9 @@ function FoodReview({ result, source, image, onDone, onRetry }) {
 }
 
 export function FoodPhoto() {
-  const { go, call, ent } = useApp();
+  const { go, call, ent, params } = useApp();
+  const meal = params?.meal || null;
+  const backTo = params?.back || 'nutrition';
   const [stage, setStage] = useState('pick');
   const [image, setImage] = useState(null);
   const [note, setNote] = useState('');
@@ -134,7 +136,7 @@ export function FoodPhoto() {
   }
   return (
     <div style={{ padding: '50px 20px 30px' }}>
-      <div className="row between"><button className="back" style={{ margin: 0 }} onClick={() => go('nutrition')}><Icon name="back" size={18} />Food</button><span className="small muted">Photo log</span></div>
+      <div className="row between"><button className="back" style={{ margin: 0 }} onClick={() => go(backTo)}><Icon name="back" size={18} />{backTo === 'today' ? 'Today' : 'Food'}</button><span className="small muted">{meal ? `${meal} photo` : 'Photo log'}</span></div>
       {stage === 'pick' && (
         <div className="stack rise" style={{ marginTop: 12 }}>
           <div className="camera" style={{ background: 'linear-gradient(160deg,#1b1b2e,#2c2a44)' }}>
@@ -159,7 +161,7 @@ export function FoodPhoto() {
           </div>
         </div>
       )}
-      {stage === 'review' && result && <div style={{ marginTop: 12 }}><FoodReview result={result} source="photo" image={image} onDone={() => go('nutrition')} onRetry={() => { setStage('pick'); setImage(null); setResult(null); }} /></div>}
+      {stage === 'review' && result && <div style={{ marginTop: 12 }}><FoodReview result={result} source="photo" image={image} meal={meal} onDone={() => go(backTo)} onRetry={() => { setStage('pick'); setImage(null); setResult(null); }} /></div>}
     </div>
   );
 }

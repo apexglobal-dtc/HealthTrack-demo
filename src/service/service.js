@@ -12,6 +12,7 @@ import { MARKERS, markerByKey, parseLabText, foundationScore, SAMPLE_LAB_TEXT, m
 import { FOODS, findFood, searchFoods, matchFood, mealTotals, nutrientsFor } from '../engine/foods.js';
 import { redFlag, SAFETY_RESPONSES, postCheck, buildPrompt, stubReply } from '../engine/genie.js';
 import { DEVICE_CATALOG, deviceById, simulatedPeriods, simulateStrengthHistory } from '../engine/simulate.js';
+import { dayFacts, planByCategory, buildCheckins } from './dayplan.js';
 import { computeCore, buildToday, mergeSources, todaysPlanned, nextTrainingDay, mealIdea, factsFor } from './compute.js';
 
 export const PRICING = {
@@ -248,7 +249,13 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     const checkinDone = !!c.checkin;
     const checkinPct = c.checkin ? Math.round((100 * ['energy', 'soreness', 'stress', 'mood'].filter((k) => c.checkin[k] != null).length) / 4) : 0;
     const hour = now().getHours();
+    const nt = nextTrainingDay(data, t);
+    const facts = dayFacts({
+      date: t, profile: p, day: c.day, c, session: td.session, oneThing: td.oneThing, oneThingRecord: td.oneThingRecord,
+      dinnerIdea: idea.name, stepsToday: c.asm.stepsByDate[t] ?? null, nextTrain: nt ? daysBetween(t, nt) : null, proteinPerKg: data.train.plan?.proteinGPerKg,
+    });
     return {
+      planCategories: planByCategory(facts), checkins: buildCheckins(facts, nowMin()), basedOn: addDays(t, -1),
       date: t, name: p.name, greeting: hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening',
       status: c.fused.WS, band: c.band, bands: BANDS, eligible: c.fused.eligible, confidence: c.conf, reason: td.reason, vsAvg: td.vsAvg,
       readiness: c.ready, capped: c.fused.capped, capReason: c.fused.capReason, cap: c.fused.CAP,
@@ -397,7 +404,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
         { key: 'recovery', name: 'Recovery', score: c.recovery ? Math.round(c.recovery.score) : null, source: sources('recovery'), detail: c.recovery?.z != null ? `HRV ${c.recovery.z > 0 ? '+' : ''}${c.recovery.z} SD` : 'Check-in based' },
         { key: 'activity', name: 'Activity', score: c.activity ? Math.round(c.activity.score) : null, source: sources('activity'), detail: c.activity ? `${c.activity.mvpa7} of 150 min` : '--' },
         { key: 'nutrition', name: 'Diet and nutrition', score: c.nutrition ? Math.round(c.nutrition.score) : null, source: sources('nutrition'), detail: `${(c.day.meals || []).length} of ${data.profile.usualMeals || 3} meals` },
-        { key: 'hydration', name: 'Water', score: c.hydration ? Math.round(c.hydration.score) : null, source: sources('hydration'), detail: `${round(c.fluid / 1000, 1)} of ${round(c.wt / 1000, 1)} L` },
+        { key: 'hydration', name: 'Hydration', score: c.hydration ? Math.round(c.hydration.score) : null, source: sources('hydration'), detail: `${round(c.fluid / 1000, 1)} of ${round(c.wt / 1000, 1)} L` },
         { key: 'fitness', name: 'Fitness', score: fit?.FS ?? null, source: fit ? 'Weekly' : 'Not yet', detail: fit ? `${fit.confidence} confidence` : 'Set a training goal' },
         { key: 'biomarkers', name: 'Biomarkers', score: labs.score, source: labs.score != null ? 'PDF upload' : 'Not yet', detail: labs.score != null ? `Tested ${labs.testDate}` : 'Upload a lab PDF' },
       ],
@@ -413,7 +420,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       { key: 'recovery', name: 'Recovery', score: c.recovery?.score, w: WEIGHTS.recovery, eff: e.recovery, driver: c.recovery ? (c.recovery.mode === 'wearable' ? `HRV ${c.recovery.z > 0 ? '+' : ''}${c.recovery.z} SD, resting HR ${c.recovery.delta > 0 ? '+' : ''}${c.recovery.delta} bpm vs your normal${c.recovery.CHK != null ? ', check-in ' + Math.round(c.recovery.CHK) : ''}${c.recovery.adjusted ? ' (cycle-adjusted)' : ''}` : `Check-in ${Math.round(c.recovery.CHK ?? c.recovery.score)}${c.recovery.mode === 'calibrating' ? ', baseline still building' : ''}`) : 'Do your morning check-in' },
       { key: 'activity', name: 'Activity', score: c.activity?.score, w: WEIGHTS.activity, eff: e.activity, driver: c.activity ? `${c.activity.steps != null ? c.activity.steps.toLocaleString() + ' steps yesterday, ' : ''}${c.activity.mvpa7} of 150 min this week, ${c.activity.strengthSessions} strength session${c.activity.strengthSessions === 1 ? '' : 's'}` : 'No movement data yet' },
       { key: 'nutrition', name: 'Fuel', score: c.nutrition?.score, w: WEIGHTS.nutrition, eff: e.nutrition, driver: c.nutrition ? `${c.nutrition.confirmed + c.nutrition.unconfirmed} of ${c.nutrition.usual} meals logged, so it counts ${Math.round(c.nutrition.cov * 100)}% of its weight` : 'Log a meal to add Fuel' },
-      { key: 'hydration', name: 'Water', score: c.hydration?.score, w: WEIGHTS.hydration, eff: e.hydration, driver: c.hydration ? `${c.fluid} of ${c.wt} ml` : 'Log water to add it' },
+      { key: 'hydration', name: 'Hydration', score: c.hydration?.score, w: WEIGHTS.hydration, eff: e.hydration, driver: c.hydration ? `${c.fluid} of ${c.wt} ml` : 'Log water to add it' },
     ].map((r) => ({ ...r, score: r.score == null ? null : Math.round(r.score), contrib: r.score == null ? 0 : round((r.eff * r.score) / (c.fused.TW || 1), 1), gap: r.score == null ? 0 : round(Math.max(0, 80 - r.score) * r.eff, 2) }));
     const lever = rows.slice().sort((a, b) => b.gap - a.gap)[0];
     return {

@@ -9,7 +9,7 @@ export function createServerPlatform({ url, anonKey }) {
   async function call(method, args) {
     const t = await token();
     if (!t) throw new Error('Please sign in');
-    const r = await fetch(`/api/rpc/${method}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${t}` }, body: JSON.stringify({ args: args || {} }) });
+    const r = await fetch(`/api/rpc/${method}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${t}`, 'x-tz-offset': String(new Date().getTimezoneOffset()) }, body: JSON.stringify({ args: args || {} }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { const e = new Error(j.error || `Request failed (${r.status})`); e.status = r.status; throw e; }
     return j.result;

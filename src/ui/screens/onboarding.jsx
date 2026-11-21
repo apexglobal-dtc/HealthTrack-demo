@@ -211,7 +211,7 @@ export function Onboarding({ trialBilling, onDone, edit }) {
         {cur === 'consent' && (
           <>
             <h1 className="page">You choose what we read</h1>
-            <p className="muted">Change any of these later in Profile. Turning one off only removes that pillar.</p>
+            <p className="muted">Change any of these later in Profile. Turning one off only removes that tracker.</p>
             <div className="card" style={{ marginTop: 14 }}>
               <div className="list">
                 {CONSENTS.map(([k, name, icon, desc]) => (

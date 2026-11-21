@@ -31,10 +31,8 @@ export function Today() {
 
       {/* Wellness Status */}
       <div className="card rise" style={{ animationDelay: '.05s' }}>
-        <div className="row between">
-          <span className="eyebrow">Wellness Status</span>
-          <span className="row" style={{ gap: 6 }}><SimBadge show={sim} /><span className={`chip ${confColor(t.confidence)}`} style={{ padding: '3px 10px', fontSize: 12 }}>{t.confidence} confidence</span></span>
-        </div>
+        <h2 style={{ margin: 0, fontSize: 19, letterSpacing: '-.01em' }}>Your Wellness Status for {longDate(t.date)}</h2>
+        <span className="row" style={{ gap: 6, marginTop: 8 }}><SimBadge show={sim} /><span className={`chip ${confColor(t.confidence)}`} style={{ padding: '3px 10px', fontSize: 12 }}>{t.confidence} confidence</span></span>
         <div className="row" style={{ gap: 18, marginTop: 10 }}>
           <button onClick={() => go('status')} aria-label="How your status is made">
             <Ring value={t.status} size={150} stroke={15} dashed={!t.eligible}>
@@ -49,8 +47,15 @@ export function Today() {
             {t.capped && <div className="xs" style={{ color: 'var(--coral)', marginTop: 4 }}>Capped at {t.cap}: {t.capReason}</div>}
           </div>
         </div>
-        <div className="row between" style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, background: 'var(--surface2)', border: '1px solid var(--line)', borderRadius: 18, padding: '12px 10px 10px' }}>
+          <div style={{ padding: '0 4px 10px' }}>
+            <b className="small">Your trackers</b>
+            <div className="xs muted">Based on yesterday, {new Date(t.basedOn + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+          </div>
+          <div className="row between">
           {pillars.map((k, i) => <MiniRing key={k} value={t.pillars[k] != null ? Math.round(t.pillars[k]) : null} color={PILLAR[k].color} icon={PILLAR[k].icon} label={PILLAR[k].name} delay={0.1 + i * 0.05} onClick={() => go(k === 'sleep' ? 'sleep' : k === 'recovery' ? 'recovery' : k === 'nutrition' || k === 'hydration' ? 'nutrition' : 'insights')} />)}
+          </div>
+          <div className="xs faint" style={{ padding: '8px 4px 0' }}>Sleep and recovery come from last night, activity from yesterday and this week. Nutrition and hydration add up what you log today.</div>
         </div>
         {!t.baselineActive && t.hasWearable && (
           <button className="notice info" style={{ marginTop: 14, width: '100%', textAlign: 'left' }} onClick={() => go('baseline')}>
@@ -110,20 +115,9 @@ export function Today() {
         </div>
       )}
 
-      {/* Today's plan */}
-      <div className="card rise" style={{ animationDelay: '.2s' }}>
-        <h3>Today's plan</h3>
-        <div className="col" style={{ gap: 0, marginTop: 6 }}>
-          {t.plan.map((p, i) => (
-            <div key={i} className="row" style={{ padding: '10px 0', borderBottom: i < t.plan.length - 1 ? '1px dashed var(--line)' : 0 }}>
-              <span className="xs muted num" style={{ width: 62 }}>{p.time}</span>
-              <span className="dot" style={{ background: p.done ? 'var(--green)' : { water: 'var(--blue)', train: 'var(--teal)', onething: 'var(--violet)', sleep: 'var(--sleep)', meal: 'var(--amber)' }[p.kind] || 'var(--faint)' }} />
-              <span className="small" style={{ flex: 1, textDecoration: p.done ? 'line-through' : 'none', opacity: p.done ? 0.6 : 1 }}>{p.text}</span>
-              {p.kind === 'water' && !p.done && <button className="chip blue" onClick={() => act('logWater', { ml: 250 }, '250 ml logged')}>+250 ml</button>}
-            </div>
-          ))}
-        </div>
-      </div>
+      <Checkins items={t.checkins} />
+
+      <TodaysPlan cats={t.planCategories} />
 
       {/* Training */}
       {t.session && t.entitlements?.train && (
@@ -158,7 +152,7 @@ export function Today() {
         </button>
         <button className="tile" onClick={() => go('water')}>
           <span className="ico" style={{ background: 'var(--tint-blue)', color: 'var(--blue)', width: 34, height: 34 }}><Icon name="drop" size={18} /></span>
-          <span className="xs muted">Water</span>
+          <span className="xs muted">Hydration</span>
           <b className="num" style={{ fontSize: 20 }}>{(t.fluid / 1000).toFixed(1)}<span className="small muted"> / {(t.waterTarget / 1000).toFixed(1)} L</span></b>
           <div className="progressbar"><i style={{ width: `${Math.min(100, (t.fluid / t.waterTarget) * 100)}%`, background: 'var(--blue)' }} /></div>
         </button>
@@ -188,6 +182,98 @@ export function Today() {
         <Icon name="chev" />
       </button>
       <div className="xs faint center" style={{ paddingBottom: 8 }}>Engine {t.engineVersion} · wellness guidance, not medical advice</div>
+    </div>
+  );
+}
+
+const longDate = (d) => new Date(d + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+// Today's plan, one category at a time (radio-style picker), AM and PM instead of exact times.
+function TodaysPlan({ cats }) {
+  const { go, act } = useApp();
+  const [sel, setSel] = useState(() => (cats.find((c) => c.done < c.total) || cats[0])?.id);
+  const cat = cats.find((c) => c.id === sel) || cats[0];
+  if (!cat) return null;
+  const run = (a) => {
+    if (!a) return;
+    if (a.kind === 'water') act('logWater', { ml: 250 }, '250 ml logged');
+    else if (a.kind === 'photo') go('food', { meal: a.meal, back: 'today' });
+    else if (a.kind === 'go') go(a.to);
+  };
+  return (
+    <div className="card rise" style={{ animationDelay: '.2s' }}>
+      <h3>Today's plan</h3>
+      <div role="radiogroup" aria-label="Plan category" className="plan-cats">
+        {cats.map((c) => (
+          <button key={c.id} role="radio" aria-checked={c.id === cat.id} className={c.id === cat.id ? 'on' : ''} onClick={() => setSel(c.id)} style={{ '--c': c.color, '--t': c.tint }}>
+            <span className="radio" aria-hidden="true" />
+            <span className="ico"><Icon name={c.icon} size={18} /></span>
+            <span className="xs" style={{ fontWeight: 700 }}>{c.name}</span>
+            <span className="xs faint num">{c.done}/{c.total}</span>
+          </button>
+        ))}
+      </div>
+      <div className="xs muted" style={{ margin: '12px 0 4px' }}>{cat.name} plan · {cat.goal}</div>
+      <div className="col" style={{ gap: 0 }}>
+        {cat.items.map((p, i) => (
+          <div key={i} className="row" style={{ padding: '10px 0', borderBottom: i < cat.items.length - 1 ? '1px dashed var(--line)' : 0, alignItems: 'flex-start' }}>
+            <span className={`chip ${p.when === 'AM' ? 'amber' : 'violet'}`} style={{ fontSize: 11, padding: '2px 8px', minWidth: 34, justifyContent: 'center' }}>{p.when}</span>
+            <span style={{ flex: 1, minWidth: 0, opacity: p.done ? 0.6 : 1 }}>
+              <span className="small" style={{ textDecoration: p.done ? 'line-through' : 'none', fontWeight: p.oneThing ? 700 : 400 }}>{p.text}</span>
+              {p.sub && <div className="xs muted">{p.sub}</div>}
+            </span>
+            {p.done ? <span className="chip green" style={{ fontSize: 11, padding: '2px 8px' }}><Icon name="check" size={12} />Done</span>
+              : p.action?.kind === 'water' ? <button className="chip blue" onClick={() => run(p.action)}>+250 ml</button>
+              : p.action?.kind === 'photo' ? <button className="chip amber" onClick={() => run(p.action)} aria-label={`Log ${p.action.meal}`}><Icon name="camera" size={14} />Log</button>
+              : p.action?.kind === 'go' ? <button className="chip teal" onClick={() => run(p.action)}>Open</button> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Four check-ins a day (6 AM, 12 PM, 5 PM, 9 PM). Each one reads what was logged since the last
+// and adjusts the next meal, water and training advice. In the phone app these arrive as notifications.
+function Checkins({ items }) {
+  const { go } = useApp();
+  const [sel, setSel] = useState(() => (items.find((x) => x.state === 'now') || items.find((x) => x.state === 'upcoming') || items[0])?.id);
+  const cur = items.find((x) => x.id === sel) || items[0];
+  if (!cur) return null;
+  return (
+    <div className="card rise" style={{ animationDelay: '.18s' }}>
+      <h3 style={{ margin: 0 }}>Today's check-ins</h3><div className="xs muted">Four alerts a day. Each one adjusts to what you logged since the last.</div>
+      <div role="tablist" aria-label="Check-in time" className="checkin-times">
+        {items.map((x) => (
+          <button key={x.id} role="tab" aria-selected={x.id === cur.id} className={`${x.id === cur.id ? 'on' : ''} ${x.state}`} onClick={() => setSel(x.id)}>
+            <b className="small">{x.label}</b>
+            <span className="xs">{x.state === 'now' ? 'Now' : x.state === 'past' ? 'Earlier' : 'Coming up'}</span>
+          </button>
+        ))}
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <div className="row" style={{ gap: 8 }}><Icon name="bell" size={18} color="var(--violet)" /><b>{cur.name}</b></div>
+        <div className="small" style={{ marginTop: 4 }}>{cur.headline}</div>
+        {cur.state === 'upcoming' && <div className="xs muted" style={{ marginTop: 4 }}>Preview. This updates with whatever you log before {cur.label}.</div>}
+        {cur.since.length > 0 && (
+          <div style={{ background: 'var(--surface2)', borderRadius: 14, padding: '10px 12px', marginTop: 10 }}>
+            <div className="xs muted" style={{ fontWeight: 700, marginBottom: 4 }}>{cur.sinceTitle}</div>
+            {cur.since.map((s, i) => <div key={i} className="row xs" style={{ gap: 8, padding: '3px 0' }}><Icon name={s.icon} size={14} color="var(--muted)" /><span>{s.text}</span></div>)}
+          </div>
+        )}
+        {cur.since.length === 0 && cur.state !== 'upcoming' && cur.id !== 'morning' && <div className="xs muted" style={{ background: 'var(--surface2)', borderRadius: 14, padding: '10px 12px', marginTop: 10 }}>{cur.sinceTitle}: nothing logged. Log meals and water and the next check-in adjusts to them.</div>}
+        <div className="col" style={{ gap: 10, marginTop: 12 }}>
+          {cur.advice.map((a, i) => (
+            <div key={i} className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+              <span className="ico" style={{ width: 30, height: 30, background: 'var(--tint-violet)', color: 'var(--violet)', flex: 'none' }}><Icon name={a.icon} size={16} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}><div className="xs muted" style={{ fontWeight: 700 }}>{a.kind}</div><div className="small">{a.text}</div></div>
+            </div>
+          ))}
+        </div>
+        {cur.ask && (cur.ask.done
+          ? <div className="chip green" style={{ marginTop: 12 }}><Icon name="check" size={14} />{cur.meal} logged</div>
+          : <Btn block kind="secondary" style={{ marginTop: 12 }} onClick={() => go('food', { meal: cur.ask.meal, back: 'today' })}><Icon name="camera" size={18} />{cur.ask.text}</Btn>)}
+      </div>
     </div>
   );
 }

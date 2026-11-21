@@ -11,7 +11,9 @@ export function Insights() {
   return (
     <div className="stack">
       <div className="rise"><div className="eyebrow">Insights</div><h1 className="page">How you are doing</h1></div>
-      <div className="grid2 rise" style={{ animationDelay: '.05s' }}>
+      <div className="rise" style={{ animationDelay: '.05s', borderRadius: 24, padding: 12, background: 'linear-gradient(140deg, var(--tint-violet), var(--tint-teal))', border: '1px solid var(--line)' }}>
+      <div className="row between" style={{ padding: '0 4px 10px' }}><b className="small">Today at a glance</b><span className="xs muted">Status and readiness</span></div>
+      <div className="grid2">
         <button className="card tap" style={{ textAlign: 'left' }} onClick={() => go('status')}>
           <div className="xs muted">Wellness Status</div>
           <div className="num" style={{ fontSize: 34, fontWeight: 800 }}>{d.status ?? '--'}</div>
@@ -25,6 +27,8 @@ export function Insights() {
           <span className={`chip ${confColor(d.confidence)}`} style={{ marginTop: 6, fontSize: 11, padding: '2px 8px' }}>{d.confidence}</span>
         </div>
       </div>
+      </div>
+      <div className="row between" style={{ padding: '4px 4px 0' }}><b className="small">Your trackers</b></div>
       <div className="grid2">
         {d.tiles.map((tl, i) => {
           const P = PILLAR[tl.key];
@@ -65,8 +69,8 @@ export function StatusExplained() {
           <div className="num" style={{ fontSize: 44, fontWeight: 800 }}><CountUp to={e.status ?? 0} /></div>
           <div className="xs muted">of 100</div>
         </SegRing>
-        <p className="xs muted" style={{ marginTop: 6 }}>Each arc's length is the pillar's weight; how full it is shows its score.</p>
-        <p className="small" style={{ marginTop: 6 }}>Five pillars, each scored 0 to 100, weighted and added up. Missing data shrinks a pillar's weight instead of guessing.</p>
+        <p className="xs muted" style={{ marginTop: 6 }}>Each arc's length is the tracker's weight; how full it is shows its score.</p>
+        <p className="small" style={{ marginTop: 6 }}>Five trackers, each scored 0 to 100. Each one counts for a set share of your status (the % next to it), and the shares add up to 100%. When a tracker has partial data, its share shrinks instead of us guessing.</p>
         <ContributionStack rows={e.rows} />
       </div>
       <div className="card">
@@ -75,7 +79,7 @@ export function StatusExplained() {
             <div key={r.key} className="item" style={{ alignItems: 'flex-start' }}>
               <span className="ico" style={{ background: PILLAR[r.key].tint, color: PILLAR[r.key].color }}><Icon name={PILLAR[r.key].icon} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="row between"><b>{r.name}</b><span className="num"><b>{r.score ?? '--'}</b> <span className="xs muted">× {Math.round(r.eff * 100)}%</span></span></div>
+                <div className="row between"><b>{r.name}</b><span className="num"><b>{r.score ?? '--'}</b> <span className="xs muted" title="This tracker's share of your status">counts {Math.round(r.eff * 100)}%</span></span></div>
                 <div className="xs muted">{r.driver}</div>
                 {r.eff < r.w && <div className="xs" style={{ color: 'var(--amber)' }}>Counts {Math.round(r.eff * 100)}% instead of {Math.round(r.w * 100)}% because data is partial</div>}
               </div>

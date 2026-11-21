@@ -82,7 +82,7 @@ export const PILLAR = {
   recovery: { name: 'Recovery', icon: 'heart', color: 'var(--coral)', tint: 'var(--tint-coral)' },
   activity: { name: 'Activity', icon: 'pulse', color: 'var(--green)', tint: 'var(--tint-green)' },
   nutrition: { name: 'Fuel', icon: 'leaf', color: 'var(--amber)', tint: 'var(--tint-amber)' },
-  hydration: { name: 'Water', icon: 'drop', color: 'var(--blue)', tint: 'var(--tint-blue)' },
+  hydration: { name: 'Hydration', icon: 'drop', color: 'var(--blue)', tint: 'var(--tint-blue)' },
   fitness: { name: 'Fitness', icon: 'dumbbell', color: 'var(--teal)', tint: 'var(--tint-teal)' },
   biomarkers: { name: 'Biomarkers', icon: 'file', color: 'var(--navy)', tint: 'var(--tint-blue)' },
 };

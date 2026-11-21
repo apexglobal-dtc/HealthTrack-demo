@@ -223,7 +223,7 @@ export function CutoffTimeline({ logs, cutoffMin, bed, wake = 6 * 60 }) {
 export function ContributionStack({ rows }) {
   const colors = { sleep: 'var(--sleep)', recovery: 'var(--coral)', activity: 'var(--green)', nutrition: 'var(--amber)', hydration: 'var(--blue)' };
   return (
-    <div className="stackbar" role="img" aria-label="How each pillar adds up to the status">
+    <div className="stackbar" role="img" aria-label="How each tracker adds up to the status">
       {rows.filter((r) => r.contrib > 0).map((r) => <i key={r.key} style={{ flexGrow: r.contrib, background: colors[r.key] }} title={`${r.name}: ${r.contrib}`} />)}
     </div>
   );

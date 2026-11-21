@@ -18,7 +18,7 @@ export async function POST(req, { params }) {
   try { const body = await req.json(); args = body?.args || {}; } catch (e) {}
   if (JSON.stringify(args).length > 2_000_000) return NextResponse.json({ error: 'Request too large' }, { status: 413 });
   try {
-    const result = await getService()[method](user.id, args);
+    const result = await getService(Number(req.headers.get('x-tz-offset')))[method](user.id, args);
     return NextResponse.json({ result: result ?? null });
   } catch (e) {
     console.error(`[rpc ${method}]`, e);
