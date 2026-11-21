@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { hasSupabase } from '../../../../server/env.js';
 import { userFromRequest } from '../../../../server/store-supabase.js';
 import { getService, PUBLIC_METHODS } from '../../../../server/service.js';
+import { explain } from '../../../../server/diagnose.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,7 @@ export async function POST(req, { params }) {
     return NextResponse.json({ result: result ?? null });
   } catch (e) {
     console.error(`[rpc ${method}]`, e);
-    return NextResponse.json({ error: e.code === 'no_profile' ? e.message : 'Something went wrong' }, { status: e.code === 'no_profile' ? 409 : 500 });
+    if (e.code === 'no_profile') return NextResponse.json({ error: e.message }, { status: 409 });
+    return NextResponse.json({ error: explain(e) || 'Something went wrong on the server. Please try again.' }, { status: 500 });
   }
 }
