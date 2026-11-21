@@ -34,8 +34,8 @@ export async function health() {
   };
   if (out.supabaseConfigured) {
     try {
-      const { error } = await adminClient().from('user_docs').select('key', { head: true, count: 'exact' }).limit(1);
-      out.database = error ? (explain(error) || `error ${error.code || ''}`) : 'ok';
+      const { error } = await adminClient().from('user_docs').select('key').limit(1);
+      out.database = error ? (explain(error) || `error ${error.code || ''} ${error.message || ''}`.trim()) : 'ok';
     } catch (e) { out.database = explain(e) || 'error'; }
     try {
       const { error } = await adminClient().auth.admin.listUsers({ page: 1, perPage: 1 });
