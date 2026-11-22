@@ -218,6 +218,7 @@ export function Nutrition() {
         </div>
         <p className="xs muted" style={{ marginBottom: 0 }}>{d.score ? `${d.score.confirmed} of ${d.score.usual} usual meals logged, so Fuel counts ${Math.round(d.score.cov * 100)}% of its share today.` : 'No meals logged yet today. Snap your first meal and your Fuel score appears here.'}</p>
       </div>
+      {d.showCalories && d.burn && <EnergyInOut b={d.burn} />}
       <MealPlanCard />
       <DeficitCard />
       <div className="row" style={{ gap: 8 }}>
@@ -269,6 +270,45 @@ const toLb = (kg) => Math.round(kg * 2.2046);
 const wFmt = (kg, units) => (kg == null ? '--' : units === 'imperial' ? `${toLb(kg)} lb` : `${Math.round(kg * 10) / 10} kg`);
 const wIn = (v, units) => (v === '' || v == null ? '' : units === 'imperial' ? Math.round((Number(v) / 2.2046) * 10) / 10 : Number(v));
 const shortDate = (d) => new Date(d + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+// Calories in (food logged) against calories out (resting + movement + workouts), so far today.
+function EnergyInOut({ b }) {
+  const [open, setOpen] = useState(false);
+  const k = (v) => Math.round(v).toLocaleString();
+  const net = b.net;
+  return (
+    <div className="card">
+      <div className="row between"><h3 style={{ margin: 0 }}>Calories in and out</h3><span className="xs muted">{b.partial ? 'So far today' : 'Whole day'}</span></div>
+      <div className="row" style={{ gap: 10, marginTop: 12 }}>
+        <div style={{ flex: 1, background: 'var(--tint-amber)', borderRadius: 14, padding: '10px 12px' }}>
+          <div className="xs muted">Eaten</div><b className="num" style={{ fontSize: 20 }}>{k(b.eaten)}</b><span className="xs muted"> kcal</span>
+        </div>
+        <div style={{ flex: 1, background: 'var(--tint-blue)', borderRadius: 14, padding: '10px 12px' }}>
+          <div className="xs muted">Burned</div><b className="num" style={{ fontSize: 20 }}>{k(b.total)}</b><span className="xs muted"> kcal</span>
+        </div>
+        <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 14, padding: '10px 12px' }}>
+          <div className="xs muted">Net</div><b className="num" style={{ fontSize: 20 }}>{net > 0 ? '+' : net < 0 ? '−' : ''}{k(Math.abs(net))}</b><span className="xs muted"> kcal</span>
+        </div>
+      </div>
+      <p className="xs muted" style={{ margin: '10px 0 0' }}>
+        {b.partial ? `About ${k(b.fullDay)} kcal by the end of a usual day. ` : ''}{net < 0 ? 'You have burned more than you have eaten so far.' : 'You have eaten more than you have burned so far.'}
+        {' '}<button className="link xs" onClick={() => setOpen(!open)}>{open ? 'Hide breakdown' : 'How burned is worked out'}</button>
+      </p>
+      {open && (
+        <div className="small" style={{ marginTop: 8, background: 'var(--surface2)', borderRadius: 12, padding: '10px 12px' }}>
+          <div className="kv"><span>Resting (your body at rest)</span><b className="num">{k(b.resting)}</b></div>
+          {b.measured ? <div className="kv"><span>Active, from your wearable</span><b className="num">{k(b.active)}</b></div> : (
+            <>
+              <div className="kv"><span>Moving around{b.steps != null ? ` (${k(b.steps)} steps)` : ''}</span><b className="num">{k(b.movement)}</b></div>
+              <div className="kv"><span>Workouts{b.workoutList.length ? ` (${b.workoutList.map((w) => `${w.type} ${w.minutes} min`).join(', ')})` : ''}</span><b className="num">{k(b.workouts)}</b></div>
+            </>
+          )}
+          <div className="xs muted" style={{ marginTop: 6 }}>An estimate from your age, height, weight, steps and workouts. Wearable active calories are used when available.</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DeficitCard() {
   const { go } = useApp();
@@ -343,6 +383,7 @@ export function Deficit() {
                 : <>Log all your meals today and we will show today's real deficit. Until then it would look bigger than it is.</>}
             </div>
           )}
+          {d.burned && <div className="xs muted" style={{ marginTop: 8 }}>Burned so far today: <b style={{ color: 'var(--text)' }}>{d.burned.total.toLocaleString()} kcal</b> ({d.burned.resting.toLocaleString()} resting, {d.burned.active.toLocaleString()} from moving and workouts).</div>}
         </div>
       )}
 

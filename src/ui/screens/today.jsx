@@ -141,6 +141,7 @@ export function Today() {
       {/* Steps */}
       <div className="card rise" style={{ animationDelay: '.3s' }}>
         <div className="row between"><h3>Steps</h3><span className="xs muted">Target {t.stepTarget.toLocaleString()}</span></div>
+        {t.burned && <div className="xs muted" style={{ marginTop: -4, marginBottom: 6 }}>About <b style={{ color: 'var(--text)' }}>{t.burned.total.toLocaleString()} kcal</b> burned so far today, {t.burned.active.toLocaleString()} of it from moving and workouts.</div>}
         <CapsuleBars items={t.steps7.map((s) => ({ label: dayName(s.date).slice(0, 1), v: s.steps }))} target={t.stepTarget} fmt={(v) => (v == null ? '--' : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v)} />
       </div>
 

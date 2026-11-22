@@ -14,6 +14,7 @@ import { redFlag, SAFETY_RESPONSES, postCheck, buildPrompt, stubReply } from '..
 import { DEVICE_CATALOG, deviceById, simulatedPeriods, simulateStrengthHistory } from '../engine/simulate.js';
 import { dayFacts, planByCategory, buildCheckins, mealSlot } from './dayplan.js';
 import { nutritionGoal, buildDay, groceryList, parseRequest, candidates, recipeById, RECIPES, SLOT_LABEL } from '../engine/mealplan.js';
+import { caloriesBurned, energyBalance } from '../engine/burn.js';
 import { PACES, deficitPlan, deficitSafety, dayDeficit, weekSummary, projection, calorieFloor } from '../engine/deficit.js';
 import { computeCore, buildToday, mergeSources, todaysPlanned, nextTrainingDay, mealIdea, factsFor } from './compute.js';
 
@@ -258,7 +259,10 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       date: t, profile: p, day: c.day, c, session: td.session, oneThing: td.oneThing, oneThingRecord: td.oneThingRecord,
       dinnerIdea: idea.name, stepsToday: c.asm.stepsByDate[t] ?? null, nextTrain: nt ? daysBetween(t, nt) : null, proteinPerKg: data.train.plan?.proteinGPerKg,
     });
+    const showCal = p.edScreenPassed && !p.edFlag;
+    const burned = showCal ? burnFor(data, c, t) : null;
     return {
+      burned,
       planCategories: planByCategory(facts), checkins: buildCheckins(facts, nowMin()), basedOn: addDays(t, -1),
       date: t, name: p.name, greeting: hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening',
       status: c.fused.WS, band: c.band, bands: BANDS, eligible: c.fused.eligible, confidence: c.conf, reason: td.reason, vsAvg: td.vsAvg,
@@ -462,6 +466,18 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     };
   }
 
+  // Calories burned for a day (energy out). Today counts only the part of the day that has passed.
+  function burnFor(data, c, d) {
+    const t = today();
+    const isToday = d === t;
+    const nm = nowMin();
+    let steps = c.asm.stepsByDate[d];
+    if (steps == null && isToday) steps = Math.round((c.asm.stepsByDate[addDays(t, -1)] || 4000) * Math.min(1, Math.max(0, (now().getHours() - 6) / 14)));
+    const wk = c.asm.workouts.filter((w) => w.date === d && (!isToday || (w.startMin ?? 0) + (w.minutes || 0) <= nm));
+    const activeKcal = data.days[d]?.activeKcal ?? null;
+    return caloriesBurned({ REE: c.en.REE, weightKg: data.profile.weightKg, steps, workouts: wk, activeKcal, dayFraction: isToday ? nm / 1440 : 1 });
+  }
+
   async function nutritionDay(u, { date } = {}) {
     const { data, wear } = await ctx(u);
     const t = date || today();
@@ -480,6 +496,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       targets: { kcal: c.en.need, protein: round(pt * kg), carbsRange: [round(0.45 * c.en.need / 4), round(0.6 * c.en.need / 4)], fat: round(0.3 * c.en.need / 9), fiber: round(14 * c.en.need / 1000) },
       kcalRange: meals.length ? [sum(meals.map((m) => m.kcalLow || m.kcal)), sum(meals.map((m) => m.kcalHigh || m.kcal))] : null,
       score: c.nutrition, showCalories, idea: { ...idea, ...mealTotals(idea.items), items: idea.items.map((i) => ({ ...i, name: findFood(i.foodId)?.name })) },
+      burn: (() => { const b = burnFor(data, c, t); const eatenK = meals.length ? round(tot.kcal) : 0; return { ...b, eaten: eatenK, net: energyBalance({ eatenKcal: eatenK, burnedKcal: b.total }), fullDay: data.profile.weightGoal === 'lose' ? round(c.en.REE * c.en.AF) : round(c.en.need) }; })(),
       water: { fluid: c.fluid, target: c.wt, logs: c.day.water || [] }, caffeine: { logs: c.day.caffeine || [], cutoffMin: c.bed - 8.8 * 60, bed: c.bed }, days7,
     };
   }
@@ -642,13 +659,15 @@ Request: ${req}`;
       const tdee = round(cd.en.REE * cd.en.AF);
       const kcal = round(kcalOf(dm, 'kcal'));
       const complete = dm.length >= usual || (dm.length >= 2 && kcal >= 0.6 * tdee); // all usual meals, or most of the day's food clearly logged
-      days7.push({ date: d, tdee, kcal, meals: dm.length, complete, deficit: complete ? tdee - kcal : null });
+      const burned = burnFor(data, cd, d).total;
+      days7.push({ date: d, tdee, burned, kcal, meals: dm.length, complete, deficit: complete ? tdee - kcal : null });
     }
     const week = weekSummary(days7);
     const log = (p.weightLog?.length ? p.weightLog : p.weightKg ? [{ date: p.createdAt || t, kg: p.weightKg }] : []).slice(-30);
     const enabled = p.weightGoal === 'lose' && !safety;
     return {
       hidden: false, paused: !!safety, pausedReason: safety?.reason || null, enabled, pace, paces: paceOptions, plan, floor: calorieFloor(p.sex),
+      burned: burnFor(data, c, t),
       today: { ...eaten, deficit: meals.length ? dayDeficit({ tdee: plan.tdee, kcalLow: eaten.low, kcalHigh: eaten.high }) : null, left: round(plan.target - eaten.kcal), complete: meals.length >= usual },
       days7, week, weightKg: p.weightKg || null, targetKg: p.targetWeightKg || null, units: p.units || 'metric', weightLog: log,
       projection: enabled ? projection({ weightKg: p.weightKg, targetKg: p.targetWeightKg, daily: plan.daily, today: t }) : null,
