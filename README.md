@@ -42,7 +42,7 @@ The app uses the **Sea Mist** palette with the **Manrope** typeface (Google Font
 | Button (`--grad`) | #0A6C99 to #14B3C4 | #8FE3EC to #3FB0D9 | Primary buttons, status ring |
 | Sleep / Recovery / Activity / Fuel / Hydration | #5563D9 / #E0563F / #1E9E66 / #D98A1C / #1BA7C9 | #9AA6FF / #FF7A66 / #3DD68C / #F5B851 / #6CC6F0 | Tracker rings |
 
-The Health Genie icon is shifted to sea blue in CSS. The Health Track logo uses midnight (#08213A) and sea blue (#0A7FA6), with the aqua dumbbell plates kept. The original purple version is kept as `ui/storyboard_v2/brand_assets/ht_logo_t_original_purple.png`.
+The Health Genie icon is shifted to sea blue in CSS. The Health Track logo uses midnight blue (#163C82) and sea blue (#0A7FA6), with the aqua dumbbell plates kept. The original purple version is kept as `ui/storyboard_v2/brand_assets/ht_logo_t_original_purple.png`.
 
 ## Project layout
 
