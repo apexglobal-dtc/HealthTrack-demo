@@ -205,7 +205,7 @@ export function Nutrition() {
       <div className="card">
         <div className="row between">
           <div>
-            <div className="xs muted">Eaten so far</div>
+            <div className="xs muted">Consumed so far</div>
             <div className="num" style={{ fontSize: 30, fontWeight: 800 }}>{!d.kcalRange ? 0 : d.kcalRange[0] === d.kcalRange[1] ? Math.round(d.totals.kcal) : `${d.kcalRange[0]}–${d.kcalRange[1]}`}<span className="small muted"> kcal</span></div>
             {d.showCalories && <div className="xs muted">of about {tg.kcal} for your day</div>}
           </div>
@@ -281,7 +281,7 @@ function EnergyInOut({ b }) {
       <div className="row between"><h3 style={{ margin: 0 }}>Calories in and out</h3><span className="xs muted">{b.partial ? 'So far today' : 'Whole day'}</span></div>
       <div className="row" style={{ gap: 10, marginTop: 12 }}>
         <div style={{ flex: 1, background: 'var(--tint-amber)', borderRadius: 14, padding: '10px 12px' }}>
-          <div className="xs muted">Eaten</div><b className="num" style={{ fontSize: 20 }}>{k(b.eaten)}</b><span className="xs muted"> kcal</span>
+          <div className="xs muted">Consumed</div><b className="num" style={{ fontSize: 20 }}>{k(b.eaten)}</b><span className="xs muted"> kcal</span>
         </div>
         <div style={{ flex: 1, background: 'var(--tint-blue)', borderRadius: 14, padding: '10px 12px' }}>
           <div className="xs muted">Burned</div><b className="num" style={{ fontSize: 20 }}>{k(b.total)}</b><span className="xs muted"> kcal</span>
@@ -291,7 +291,7 @@ function EnergyInOut({ b }) {
         </div>
       </div>
       <p className="xs muted" style={{ margin: '10px 0 0' }}>
-        {b.partial ? `About ${k(b.fullDay)} kcal by the end of a usual day. ` : ''}{net < 0 ? 'You have burned more than you have eaten so far.' : 'You have eaten more than you have burned so far.'}
+        {b.partial ? `About ${k(b.fullDay)} kcal by the end of a usual day. ` : ''}{net < 0 ? 'You have burned more than you have consumed so far.' : 'You have consumed more than you have burned so far.'}
         {' '}<button className="link xs" onClick={() => setOpen(!open)}>{open ? 'Hide breakdown' : 'How burned is worked out'}</button>
       </p>
       {open && (
@@ -373,7 +373,7 @@ export function Deficit() {
           </div>
           <div className="progressbar" style={{ marginTop: 8, height: 10 }}><i style={{ width: `${eatenPct}%`, background: d.today.left < 0 ? 'var(--coral)' : 'var(--amber)' }} /></div>
           <div className="row between xs muted" style={{ marginTop: 6 }}>
-            <span>Eaten {d.today.low === d.today.high ? d.today.kcal : `${d.today.low}–${d.today.high}`} kcal ({d.today.meals} of {d.today.usual} meals)</span>
+            <span>Consumed {d.today.low === d.today.high ? d.today.kcal : `${d.today.low}–${d.today.high}`} kcal ({d.today.meals} of {d.today.usual} meals)</span>
             <b style={{ color: d.today.left < 0 ? 'var(--coral)' : 'var(--text)' }}>{d.today.left >= 0 ? `${d.today.left.toLocaleString()} left` : `${(-d.today.left).toLocaleString()} over`}</b>
           </div>
           {d.today.deficit && (
