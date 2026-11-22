@@ -36,7 +36,7 @@ The app uses the **Sea Mist** palette with the **Manrope** typeface (Google Font
 |---|---|---|---|
 | Page (`--bg`) | #E3F2F4 sea mist | #06142A midnight | Screen background |
 | Tile (`--surface`) | #FFFFFF | #0D2140 | Cards and tiles |
-| Text (`--text`) | #08213A midnight | #EAF6FA | Body and headings |
+| Text (`--text`) | #163C82 midnight blue | #EAF6FA | Body and headings |
 | Muted (`--muted`) | #4A6175 | #A3B9CC | Secondary text |
 | Primary (`--violet`, kept as the token name) | #0A7FA6 sea blue | #5CCFE0 aqua | Links, active tabs, highlights |
 | Button (`--grad`) | #0A6C99 to #14B3C4 | #8FE3EC to #3FB0D9 | Primary buttons, status ring |

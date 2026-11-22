@@ -1,6 +1,6 @@
 /* Health Track demo styles. Tokens come from ui/storyboard_v2/design_tokens.css (day and night). */
 :root {
-  --page-bg: #D7EAEE; --page-fg: #08213A; --bezel: #1D3346;
+  --page-bg: #D7EAEE; --page-fg: #163C82; --bezel: #1D3346;
   --font: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page-bg: #030B17; --page-fg: #EAF6FA; --bezel: #1B3146; color-scheme: dark; } }
@@ -12,7 +12,7 @@ body { background: var(--page-bg); color: var(--page-fg); font-family: var(--fon
    Palette "Sea Mist": one flat sea-mist page color, white tiles, sea-blue to aqua buttons, midnight text.
    --violet is kept as the token name for the primary accent so components need no changes. */
 .ht {
-  --bg: #E3F2F4; --surface: #FFFFFF; --surface2: #EEF7F8; --text: #08213A; --muted: #4A6175; --faint: #7F95A5;
+  --bg: #E3F2F4; --surface: #FFFFFF; --surface2: #EEF7F8; --text: #163C82; --muted: #4A6175; --faint: #7F95A5;
   --violet: #0A7FA6; --navy: #0B3A5C; --teal: #12A5A0; --green: #1E9E66; --amber: #D98A1C; --coral: #E0563F; --blue: #1BA7C9;
   --sleep: #5563D9; --line: #D3E8EB; --track: #DCECEF; --onprimary: #FFFFFF;
   --shadow: 0 1px 2px rgba(8,33,58,.04), 0 10px 30px -10px rgba(8,33,58,.12);
