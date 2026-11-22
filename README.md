@@ -17,7 +17,7 @@ There are two ways to run the same code:
 - Splash, welcome, 30-day trial ($12.99 a month or $99.99 a year), sign up, sign in, password reset.
 - Onboarding: goals, about you, data sources (14 devices or phone only), consent, rhythm, routine and food, cycle opt-in, first check-in, first status reveal.
 - Today: two pages side by side. Page 1 has the Wellness Status with band, confidence and the five trackers (based on yesterday), Your One Thing, today's four check-ins (6 AM, 12 PM, 5 PM, 9 PM) and Ask Health Genie. Page 2 (More for today) has keep doing, today's plan by category, training verdict, steps, meal idea, hydration and cycle day.
-- Nutrition: calorie deficit planner and a daily meal plan (day, week and grocery views, swap, log as eaten, eating out, plain-language changes).
+- Nutrition: calories in and out (eaten against burned, with a breakdown), calorie deficit planner and a daily meal plan (day, week and grocery views, swap, log as eaten, eating out, plain-language changes).
 - Navigation: no back buttons. Use the tab bar, or swipe in from the left edge to go back a step; full-screen flows have a close button.
 - Insights: tiles for 7 pillars, "how your status is made", sleep, recovery (HRV and resting HR against your own normal band), food and water with calorie ranges, caffeine cut-off.
 - Health Genie (centre tab, press and hold for quick actions): chat grounded in today's numbers, safety router (chest pain, breathing, fainting, self-harm, eating disorder, pregnancy) with fixed copy, proposed actions you confirm (move workout, reminder, log water), memory you can edit, voice.
