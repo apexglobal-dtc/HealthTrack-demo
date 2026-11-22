@@ -16,7 +16,9 @@ There are two ways to run the same code:
 
 - Splash, welcome, 30-day trial ($12.99 a month or $99.99 a year), sign up, sign in, password reset.
 - Onboarding: goals, about you, data sources (14 devices or phone only), consent, rhythm, routine and food, cycle opt-in, first check-in, first status reveal.
-- Today: Wellness Status with band and confidence, 5 pillar rings, One Thing (accept, make smaller, done/partly/skipped, habit day x of 21), today's plan, training verdict, steps, meal idea, water, cycle day.
+- Today: two pages side by side. Page 1 has the Wellness Status with band, confidence and the five trackers (based on yesterday), Your One Thing, today's four check-ins (6 AM, 12 PM, 5 PM, 9 PM) and Ask Health Genie. Page 2 (More for today) has keep doing, today's plan by category, training verdict, steps, meal idea, hydration and cycle day.
+- Nutrition: calorie deficit planner and a daily meal plan (day, week and grocery views, swap, log as eaten, eating out, plain-language changes).
+- Navigation: no back buttons. Use the tab bar, or swipe in from the left edge to go back a step; full-screen flows have a close button.
 - Insights: tiles for 7 pillars, "how your status is made", sleep, recovery (HRV and resting HR against your own normal band), food and water with calorie ranges, caffeine cut-off.
 - Health Genie (centre tab, press and hold for quick actions): chat grounded in today's numbers, safety router (chest pain, breathing, fainting, self-harm, eating disorder, pregnancy) with fixed copy, proposed actions you confirm (move workout, reminder, log water), memory you can edit, voice.
 - Log: food photo with S/M/L portions, say-it logging, water, coffee, workout, check-in, period, lab PDF.
@@ -25,6 +27,22 @@ There are two ways to run the same code:
 - Labs: PDF upload (read in the browser with pdf.js), rule parser plus Claude, confirm each value, Foundation score, marker detail with range bar.
 - Cycle: dial, prediction window with confidence, phase notes, symptoms and flow, life stage, on-device or cloud storage, delete all.
 - Profile: devices, plans and the cancel-save offer ($9.99 a month or $89.99 a year Essentials), privacy and consent toggles, export, delete account, day/night theme.
+
+## Look and feel: Sea Mist
+
+The app uses the **Sea Mist** palette with the **Manrope** typeface (Google Fonts), chosen in November 2026 for a younger audience. Day mode is a single flat sea-mist page with white tiles; night mode is midnight blue with aqua accents. All colors are tokens at the top of `src/ui/styles.css`, mirrored in `ui/storyboard_v2/design_tokens.css`.
+
+| Token | Day | Night | Used for |
+|---|---|---|---|
+| Page (`--bg`) | #E3F2F4 sea mist | #06142A midnight | Screen background |
+| Tile (`--surface`) | #FFFFFF | #0D2140 | Cards and tiles |
+| Text (`--text`) | #08213A midnight | #EAF6FA | Body and headings |
+| Muted (`--muted`) | #4A6175 | #A3B9CC | Secondary text |
+| Primary (`--violet`, kept as the token name) | #0A7FA6 sea blue | #5CCFE0 aqua | Links, active tabs, highlights |
+| Button (`--grad`) | #0A6C99 to #14B3C4 | #8FE3EC to #3FB0D9 | Primary buttons, status ring |
+| Sleep / Recovery / Activity / Fuel / Hydration | #5563D9 / #E0563F / #1E9E66 / #D98A1C / #1BA7C9 | #9AA6FF / #FF7A66 / #3DD68C / #F5B851 / #6CC6F0 | Tracker rings |
+
+The Health Genie icon is shifted to sea blue in CSS. The Health Track logo file itself is unchanged and still uses the original brand colors.
 
 ## Project layout
 

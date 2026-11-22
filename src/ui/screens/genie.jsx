@@ -178,7 +178,7 @@ export function VoiceGenie() {
       <p className="center" style={{ opacity: 0.75, minHeight: 40 }}>{heard}</p>
       <p className="center" style={{ fontSize: 17 }}>{answer}</p>
       <div className="spacer" />
-      <button className="btn block" style={{ background: '#fff', color: '#2B1A6B' }} onClick={() => (state === 'listening' ? stopRef.current?.() : start())}>{state === 'listening' ? 'Done' : 'Talk'}</button>
+      <button className="btn block" style={{ background: '#fff', color: '#0B3A5C' }} onClick={() => (state === 'listening' ? stopRef.current?.() : start())}>{state === 'listening' ? 'Done' : 'Talk'}</button>
     </div>
   );
 }

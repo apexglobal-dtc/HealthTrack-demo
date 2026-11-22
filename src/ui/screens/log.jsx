@@ -156,7 +156,7 @@ export function FoodPhoto() {
         <div className="stack" style={{ marginTop: 12 }}>
           <div className="camera" style={{ backgroundImage: image ? `url(${image})` : 'linear-gradient(160deg,#1b1b2e,#2c2a44)' }}>
             <div className="frame" />
-            <div style={{ position: 'absolute', left: 30, right: 30, height: 3, background: 'linear-gradient(90deg, transparent, #B48BFF, transparent)', animation: 'scan 1.4s ease-in-out infinite', top: '30%' }} />
+            <div style={{ position: 'absolute', left: 30, right: 30, height: 3, background: 'linear-gradient(90deg, transparent, #7FD6E3, transparent)', animation: 'scan 1.4s ease-in-out infinite', top: '30%' }} />
             <span className="chip" style={{ position: 'absolute', bottom: 18, background: 'rgba(0,0,0,.55)', color: '#fff' }}>Reading your plate…</span>
           </div>
         </div>

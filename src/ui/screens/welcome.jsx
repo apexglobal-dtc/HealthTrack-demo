@@ -19,22 +19,22 @@ export function Splash() {
 export function Welcome({ onSignUp, onSignIn, onDemo }) {
   const [busy, setBusy] = useState(false);
   return (
-    <div style={{ position: 'absolute', inset: 0, background: '#F6F7FB', color: '#0E1A33', overflow: 'auto' }}>
+    <div style={{ position: 'absolute', inset: 0, background: '#E3F2F4', color: '#08213A', overflow: 'auto' }}>
       <div style={{ position: 'relative', height: '58%', minHeight: 360 }}>
         <div className="zoom" style={{ position: 'absolute', inset: 0, background: `url(${asset('splash.jpg')}) center 20% / cover no-repeat` }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(246,247,251,.1) 50%, #F6F7FB 100%)' }} />
-        <svg viewBox="0 0 200 200" style={{ position: 'absolute', left: -40, top: 60, width: 260, opacity: .6 }} aria-hidden="true"><circle cx="100" cy="100" r="80" fill="none" stroke="#B48BFF" strokeWidth="16" strokeDasharray="4 6" className="ring-arc" /></svg>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(227,242,244,.1) 50%, #E3F2F4 100%)' }} />
+        <svg viewBox="0 0 200 200" style={{ position: 'absolute', left: -40, top: 60, width: 260, opacity: .6 }} aria-hidden="true"><circle cx="100" cy="100" r="80" fill="none" stroke="#7FD6E3" strokeWidth="16" strokeDasharray="4 6" className="ring-arc" /></svg>
         <span className="logo-chip" style={{ position: 'absolute', top: 54, left: 20, background: '#fff', padding: '4px 10px' }}><img src={asset('logo.png')} alt="Health Track" /></span>
-        <div className="float-chip" style={{ top: 120, right: 16, animationDelay: '0s, 1s' }}><span className="ico" style={{ width: 32, height: 32, background: '#FCEFD9', color: '#D98A1C' }}><Icon name="moon" size={18} /></span><span style={{ color: '#5B6478' }}>Sleep</span><b>8 h 20 m</b></div>
-        <div className="float-chip" style={{ top: 210, left: 14, animationDelay: '.12s, 1.4s' }}><span className="ico" style={{ width: 32, height: 32, background: '#FBE3DE', color: '#E0563F' }}><Icon name="heart" size={18} /></span><span style={{ color: '#5B6478' }}>Heart rate</span><b>72 bpm</b></div>
-        <div className="float-chip" style={{ bottom: 30, right: 30, animationDelay: '.24s, 1.8s' }}><span className="ico" style={{ width: 32, height: 32, background: '#E1EBFE', color: '#3B7BF6' }}><Icon name="drop" size={18} /></span><span style={{ color: '#5B6478' }}>Hydration</span><b>2.5 L</b></div>
+        <div className="float-chip" style={{ top: 120, right: 16, animationDelay: '0s, 1s' }}><span className="ico" style={{ width: 32, height: 32, background: '#FCEFD9', color: '#D98A1C' }}><Icon name="moon" size={18} /></span><span style={{ color: '#4A6175' }}>Sleep</span><b>8 h 20 m</b></div>
+        <div className="float-chip" style={{ top: 210, left: 14, animationDelay: '.12s, 1.4s' }}><span className="ico" style={{ width: 32, height: 32, background: '#FBE3DE', color: '#E0563F' }}><Icon name="heart" size={18} /></span><span style={{ color: '#4A6175' }}>Heart rate</span><b>72 bpm</b></div>
+        <div className="float-chip" style={{ bottom: 30, right: 30, animationDelay: '.24s, 1.8s' }}><span className="ico" style={{ width: 32, height: 32, background: '#DDF1F6', color: '#1BA7C9' }}><Icon name="drop" size={18} /></span><span style={{ color: '#4A6175' }}>Hydration</span><b>2.5 L</b></div>
       </div>
       <div style={{ padding: '6px 24px 28px' }} className="rise">
         <h1 style={{ fontSize: 38, lineHeight: 1.05, margin: 0, letterSpacing: '-.03em', fontWeight: 800 }}>Welcome<br />to <span className="gradtext">HealthTrack</span></h1>
-        <p style={{ color: '#5B6478', fontSize: 17, margin: '10px 0 18px' }}>Your wellness, in one place.</p>
+        <p style={{ color: '#4A6175', fontSize: 17, margin: '10px 0 18px' }}>Your wellness, in one place.</p>
         <button className="btn primary block" onClick={onSignUp} style={{ height: 56, borderRadius: 99 }}>Sign up</button>
-        <button className="btn block" onClick={onSignIn} style={{ marginTop: 10, height: 56, borderRadius: 99, background: '#fff', color: '#0E1A33' }}>Sign in</button>
-        <button className="btn block" disabled={busy} onClick={async () => { setBusy(true); try { await onDemo(); } finally { setBusy(false); } }} style={{ marginTop: 10, height: 44, color: '#6B3FD6', fontSize: 15 }}>{busy ? 'Loading a month of demo data...' : 'Explore the demo with sample data'}</button>
+        <button className="btn block" onClick={onSignIn} style={{ marginTop: 10, height: 56, borderRadius: 99, background: '#fff', color: '#08213A' }}>Sign in</button>
+        <button className="btn block" disabled={busy} onClick={async () => { setBusy(true); try { await onDemo(); } finally { setBusy(false); } }} style={{ marginTop: 10, height: 44, color: '#0A7FA6', fontSize: 15 }}>{busy ? 'Loading a month of demo data...' : 'Explore the demo with sample data'}</button>
       </div>
     </div>
   );

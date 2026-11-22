@@ -24,7 +24,7 @@ const assets = { 'genie.png': asset('genie.png', 'image/png'), 'logo.png': asset
 const html = `<title>Health Track Demo</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${css}</style>
 <div id="ht-root"></div>
 <script>window.__HT_ASSETS__=${JSON.stringify(assets)};</script>
