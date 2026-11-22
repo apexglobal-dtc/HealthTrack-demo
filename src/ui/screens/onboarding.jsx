@@ -131,7 +131,7 @@ export function Onboarding({ trialBilling, onDone, edit }) {
       {cur !== 'reveal' && cur !== 'save' && (
         <>
           <div className="row between">
-            {step > 0 ? <button className="back" style={{ margin: 0, width: 80 }} onClick={back}><Icon name="back" size={18} />Back</button> : <span style={{ width: 80 }} />}
+            {step > 0 ? <button className="link small" style={{ margin: 0, width: 80, textAlign: 'left' }} onClick={back}>Previous</button> : <span style={{ width: 80 }} />}
             <span className="logo-chip"><img src={asset('logo.png')} alt="Health Track" /></span>
             {edit
               ? <button className="link small" style={{ width: 80, textAlign: 'right' }} onClick={() => go('profile')}>Cancel</button>

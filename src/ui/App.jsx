@@ -24,6 +24,7 @@ const ROUTES = {
   setup: SetupEdit, devices: Devices, privacy: Privacy, 'delete-account': DeleteAccount, plans: Plans, cancel: CancelOffer, about: About,
 };
 const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', deficit: 'insights', mealplan: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
+const TAB_ROOTS = new Set(['today', 'insights', 'genie', 'progress', 'profile']);
 const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
 
 // Keeps one broken screen from blanking the whole app.
@@ -100,13 +101,33 @@ export default function App({ platform }) {
     return () => window.removeEventListener('hashchange', onHash);
   }, [route]);
 
-  const go = useCallback((r, p = {}) => {
-    setParams(p);
+  const trail = useRef([]);
+  const routeNow = useRef(route);
+  routeNow.current = route;
+  const paramsNow = useRef(params);
+  paramsNow.current = params;
+  const go = useCallback((r, p = {}, { replace } = {}) => {
+    const prev = routeNow.current;
+    if (prev !== r && !replace) trail.current = TAB_ROOTS.has(r) ? [] : [...trail.current.slice(-20), { r: prev, p: paramsNow.current }];
+    routeNow.current = r;
     setRoute(r);
+    setParams(p);
     setSheet(null);
     try { if (location.hash.slice(1) !== r) location.hash = r; } catch (e) { /* hash routing optional */ }
     scrollRef.current?.scrollTo?.({ top: 0 });
   }, []);
+  // Swipe in from the left edge to go back a step (there are no back buttons).
+  const edge = useRef(null);
+  const edgeStart = (e) => { const x = e.touches[0].clientX - (e.currentTarget.getBoundingClientRect?.().left || 0); edge.current = x < 28 && !TAB_ROOTS.has(routeNow.current) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; };
+  const edgeEnd = (e) => {
+    const s0 = edge.current; edge.current = null;
+    if (!s0) return;
+    const t = e.changedTouches[0];
+    if (t.clientX - s0.x > 70 && Math.abs(t.clientY - s0.y) < 60) {
+      const back = trail.current.pop();
+      go(back?.r || TAB_OF[routeNow.current] || 'today', back?.p || {}, { replace: true });
+    }
+  };
   const bump = useCallback(() => setVersion((v) => v + 1), []);
   const toast = useCallback((msg, undo) => { setToast({ msg, undo, id: Date.now() }); }, []);
   useEffect(() => { if (!toastMsg) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toastMsg]);
@@ -141,7 +162,7 @@ export default function App({ platform }) {
   else {
     body = (
       <>
-        <div ref={scrollRef} className={`scroll ${NO_NAV.has(route) ? 'noNav' : ''}`} key={route}>
+        <div ref={scrollRef} className={`scroll ${NO_NAV.has(route) ? 'noNav' : ''}`} key={route} onTouchStart={edgeStart} onTouchEnd={edgeEnd}>
           <StatusBar />
           {!NO_NAV.has(route) && <TopBar />}
           <ScreenBoundary key={route + JSON.stringify(params)} onHome={() => go('today')}><Screen /></ScreenBoundary>

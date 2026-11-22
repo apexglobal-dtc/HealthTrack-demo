@@ -15,19 +15,9 @@ export function Today() {
   const sim = t.devices?.some((d) => d.provider === 'simulated');
 
   return (
+    <TodayPager>
     <div className="stack">
-      <div className="rise">
-        <div className="eyebrow">{new Date(t.date + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-        <h1 className="page">{t.greeting}, {t.name}</h1>
-      </div>
-
-      {!t.checkinDone && (
-        <button className="card tap tint rise row" style={{ textAlign: 'left' }} onClick={() => openSheet('checkin')}>
-          <span className="ico" style={{ background: 'var(--violet)', color: '#fff' }}><Icon name="check" /></span>
-          <span style={{ flex: 1 }}><b>Morning check-in</b><div className="small muted">20 seconds. Sharpens today's status.</div></span>
-          <Icon name="chev" />
-        </button>
-      )}
+      <h1 className="page rise" style={{ fontSize: 24 }}>{t.greeting}, {t.name}</h1>
 
       {/* Wellness Status */}
       <div className="card rise" style={{ animationDelay: '.05s' }}>
@@ -108,14 +98,26 @@ export function Today() {
         </div>
       )}
 
+      <Checkins items={t.checkins} checkinDone={t.checkinDone} />
+
+      <button className="card flat row" style={{ textAlign: 'left' }} onClick={() => go('genie')}>
+        <span className="genie-orb" style={{ width: 40, height: 40, margin: 0 }}><img src={(window.__HT_ASSETS__?.['genie.png']) || '/assets/genie.png'} alt="" /></span>
+        <span style={{ flex: 1 }}><b className="small">Ask Health Genie</b><div className="xs muted">"Should I train today?" · "Why is my status {t.band?.name?.toLowerCase() || 'like this'}?"</div></span>
+        <Icon name="chev" />
+      </button>
+    </div>
+    <div className="stack">
+      <div className="rise">
+        <div className="eyebrow">More for today</div>
+        <h1 className="page" style={{ fontSize: 24 }}>Your plan and progress</h1>
+      </div>
+
       {t.keepDoing && (
         <div className="card flat row rise" style={{ animationDelay: '.15s' }}>
           <span className="ico" style={{ background: 'var(--tint-green)', color: 'var(--green)' }}><Icon name="check" /></span>
           <div style={{ flex: 1 }}><div className="xs muted">Keep doing</div><b className="small">{t.keepDoing.title}</b></div>
         </div>
       )}
-
-      <Checkins items={t.checkins} />
 
       <TodaysPlan cats={t.planCategories} />
 
@@ -176,12 +178,49 @@ export function Today() {
         </button>
       )}
 
-      <button className="card flat row" style={{ textAlign: 'left' }} onClick={() => go('genie')}>
-        <span className="genie-orb" style={{ width: 40, height: 40, margin: 0 }}><img src={(window.__HT_ASSETS__?.['genie.png']) || '/assets/genie.png'} alt="" /></span>
-        <span style={{ flex: 1 }}><b className="small">Ask Health Genie</b><div className="xs muted">"Should I train today?" · "Why is my status {t.band?.name?.toLowerCase() || 'like this'}?"</div></span>
-        <Icon name="chev" />
-      </button>
       <div className="xs faint center" style={{ paddingBottom: 8 }}>Engine {t.engineVersion} · wellness guidance, not medical advice</div>
+    </div>
+    </TodayPager>
+  );
+}
+
+// Today is two pages side by side. Page 1 holds the essentials; page 2 holds the rest.
+// Swipe sideways (scroll-snap) or tap the dots / hint to move between them.
+function TodayPager({ children }) {
+  const ref = React.useRef(null);
+  const [page, setPage] = useState(0);
+  const pages = React.Children.toArray(children);
+  const [h, setH] = useState(null);
+  // The track takes the height of the page in view, so page 1 doesn't inherit page 2's length.
+  React.useEffect(() => {
+    const el = ref.current?.children[page];
+    if (!el) return undefined;
+    const fit = () => setH(el.offsetHeight);
+    fit();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [page]);
+  const goTo = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' }); el?.closest('.scroll')?.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const onScroll = () => { const el = ref.current; if (el) setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth))); };
+  return (
+    <div className="today-pager">
+      <div className="pager-dots" role="tablist" aria-label="Today pages">
+        {['Today', 'More for today'].map((l, i) => <button key={l} role="tab" aria-selected={page === i} className={page === i ? 'on' : ''} onClick={() => goTo(i)}>{l}</button>)}
+      </div>
+      <div className="pager-track" ref={ref} onScroll={onScroll} style={h ? { height: h } : undefined}>
+        {pages.map((p, i) => <section key={i} className="pager-page" aria-hidden={page !== i}>{p}</section>)}
+      </div>
+      {page === 0 && (
+        <button className="swipe-hint" onClick={() => goTo(1)}>
+          <span>Swipe left for your plan, training, steps and more</span><Icon name="chev" size={16} />
+        </button>
+      )}
+      {page === 1 && (
+        <button className="swipe-hint left" onClick={() => goTo(0)}>
+          <Icon name="back" size={16} /><span>Swipe right to go back to your status</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -235,14 +274,21 @@ function TodaysPlan({ cats }) {
 
 // Four check-ins a day (6 AM, 12 PM, 5 PM, 9 PM). Each one reads what was logged since the last
 // and adjusts the next meal, water and training advice. In the phone app these arrive as notifications.
-function Checkins({ items }) {
-  const { go } = useApp();
+function Checkins({ items, checkinDone }) {
+  const { go, openSheet } = useApp();
   const [sel, setSel] = useState(() => (items.find((x) => x.state === 'now') || items.find((x) => x.state === 'upcoming') || items[0])?.id);
   const cur = items.find((x) => x.id === sel) || items[0];
   if (!cur) return null;
   return (
     <div className="card rise" style={{ animationDelay: '.18s' }}>
       <h3 style={{ margin: 0 }}>Today's check-ins</h3><div className="xs muted">Four alerts a day. Each one adjusts to what you logged since the last.</div>
+      {!checkinDone && (
+        <button className="row tap" style={{ width: '100%', textAlign: 'left', marginTop: 10, background: 'var(--tint-violet)', borderRadius: 14, padding: '10px 12px', gap: 10 }} onClick={() => openSheet('checkin')}>
+          <span className="ico" style={{ background: 'var(--violet)', color: '#fff', width: 30, height: 30 }}><Icon name="check" size={16} /></span>
+          <span style={{ flex: 1 }}><b className="small">Morning check-in</b><div className="xs muted">20 seconds. Sharpens today's status.</div></span>
+          <Icon name="chev" />
+        </button>
+      )}
       <div role="tablist" aria-label="Check-in time" className="checkin-times">
         {items.map((x) => (
           <button key={x.id} role="tab" aria-selected={x.id === cur.id} className={`${x.id === cur.id ? 'on' : ''} ${x.state}`} onClick={() => setSel(x.id)}>

@@ -46,7 +46,7 @@ export function Trial({ onContinue, onBack }) {
   const benefits = ['Your daily Wellness Status and One Thing', 'Health Genie, your coach in your pocket', 'Photo food logging with honest ranges', 'Training plans that flex with your readiness', 'Cycle-aware recovery (optional)', 'Lab report reading and Foundation score'];
   return (
     <div className="scroll noNav" style={{ paddingTop: 50 }}>
-      <button className="back" onClick={onBack}><Icon name="back" size={18} />Back</button>
+      <button className="close-x" aria-label="Close" onClick={onBack}><Icon name="x" size={18} /></button>
       <div className="rise">
         <span className="chip violet" style={{ marginTop: 8 }}>30 days free</span>
         <h1 className="page" style={{ marginTop: 12 }}>Start your 30-day free trial</h1>
@@ -87,7 +87,7 @@ export function Auth({ mode, setMode, onBack, onDone }) {
 
   const header = (title, sub) => (
     <>
-      <button className="back" onClick={() => (mode === 'signup' || mode === 'signin' ? onBack() : setMode('signin'))}><Icon name="back" size={18} />Back</button>
+      <button className="close-x" aria-label="Close" onClick={() => (mode === 'signup' || mode === 'signin' ? onBack() : setMode('signin'))}><Icon name="x" size={18} /></button>
       <span className="logo-chip" style={{ marginTop: 10 }}><img src={asset('logo.png')} alt="Health Track" /></span>
       <h1 className="page" style={{ marginTop: 14 }}>{title}</h1>
       <p className="muted" style={{ marginTop: 0 }}>{sub}</p>
@@ -196,7 +196,7 @@ function VerifyCode({ email, info, onBack, onDone }) {
   return (
     <div className="scroll noNav" style={{ paddingTop: 50 }}>
       <div className="rise">
-        <button className="back" onClick={onBack}><Icon name="back" size={18} />Back</button>
+        <button className="close-x" aria-label="Close" onClick={onBack}><Icon name="x" size={18} /></button>
         <h1 className="page" style={{ marginTop: 14 }}>Enter verification code</h1>
         <p className="muted">We sent a 6-digit code to {masked}.</p>
         {info && <div className="notice info small" style={{ marginBottom: 12 }}>{info}</div>}

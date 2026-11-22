@@ -125,7 +125,7 @@ export function SetLogger() {
   const allDone = exs.every((e) => e.done >= e.sets);
   return (
     <div style={{ padding: '50px 20px 30px' }} className="stack">
-      <div className="row between"><button className="back" style={{ margin: 0 }} onClick={() => go('train')}><Icon name="back" size={18} />Train</button><span className="small muted">{d.session.title}</span></div>
+      <div className="row between"><span className="small muted">{d.session.title}</span><button className="close-x" style={{ margin: 0 }} aria-label="Close" onClick={() => go('train')}><Icon name="x" size={18} /></button></div>
       <div className="row" style={{ gap: 6, overflowX: 'auto' }}>
         {exs.map((e, k) => <button key={e.id} className={`chip select ${k === i ? 'on' : ''}`} onClick={() => setI(k)}>{e.done >= e.sets ? '✓ ' : ''}{e.name}</button>)}
       </div>
@@ -182,7 +182,7 @@ export function LiveActivity() {
   const mm = String(Math.floor(sec / 60)).padStart(2, '0'), ss = String(sec % 60).padStart(2, '0');
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(170deg, #0F2A5C, #0B1430)', color: '#fff', padding: '56px 22px 30px', display: 'flex', flexDirection: 'column' }}>
-      <div className="row between"><button onClick={() => go('train')} style={{ color: '#fff' }} className="row"><Icon name="back" size={18} />Exit</button><span className="badge sim">Simulated heart rate</span></div>
+      <div className="row between"><button onClick={() => go('train')} style={{ color: '#fff' }} className="row"><Icon name="x" size={18} />Exit</button><span className="badge sim">Simulated heart rate</span></div>
       {!running && sec === 0 && (
         <div className="row wrap" style={{ gap: 6, marginTop: 20 }}>{['Walking', 'Running', 'Cycling', 'Strength', 'Yoga'].map((t) => <button key={t} className="chip" style={{ background: type === t ? '#fff' : 'rgba(255,255,255,.12)', color: type === t ? '#0F2A5C' : '#fff' }} onClick={() => setType(t)}>{t}</button>)}</div>
       )}

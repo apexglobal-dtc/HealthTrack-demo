@@ -259,3 +259,21 @@ textarea.input { height: auto; padding: 12px 14px; }
 :where(.ht) .checkin-times button.now { color: var(--violet); }
 :where(.ht) .checkin-times button.past { opacity: .8; }
 :where(.ht) .checkin-times button.on { background: var(--tint-violet); border-color: var(--violet); color: var(--violet); }
+
+/* Today: two side-by-side pages */
+.today-pager { position: relative; margin: 0 -20px; }
+.pager-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; overflow-y: hidden; align-items: flex-start; transition: height .25s ease; }
+.pager-track::-webkit-scrollbar { display: none; }
+.pager-page { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; padding: 0 20px 4px; box-sizing: border-box; }
+.pager-dots { display: flex; gap: 6px; justify-content: center; margin: 0 20px 10px; }
+.pager-dots button { font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; color: var(--muted); background: var(--surface2); border: 1px solid var(--line); }
+.pager-dots button.on { background: var(--violet); color: #fff; border-color: transparent; }
+.swipe-hint { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 40px); margin: 12px 20px 4px; padding: 11px 14px; border-radius: 16px; font-size: 13px; font-weight: 600; color: var(--violet); background: var(--tint-violet); }
+.swipe-hint svg { animation: nudge 1.6s ease-in-out infinite; }
+.swipe-hint.left svg { animation-name: nudgeL; }
+@keyframes nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+@keyframes nudgeL { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+@media (prefers-reduced-motion: reduce) { .swipe-hint svg { animation: none; } }
+
+/* Close button on full-screen flows (replaces back buttons) */
+.close-x { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-left: auto; border-radius: 50%; background: var(--surface2); color: var(--muted); border: 1px solid var(--line); }

@@ -136,7 +136,7 @@ export function FoodPhoto() {
   }
   return (
     <div style={{ padding: '50px 20px 30px' }}>
-      <div className="row between"><button className="back" style={{ margin: 0 }} onClick={() => go(backTo)}><Icon name="back" size={18} />{backTo === 'today' ? 'Today' : 'Food'}</button><span className="small muted">{meal ? `${meal} photo` : 'Photo log'}</span></div>
+      <div className="row between"><span className="small muted">{meal ? `${meal} photo` : 'Photo log'}</span><button className="close-x" style={{ margin: 0 }} aria-label="Close" onClick={() => go(backTo)}><Icon name="x" size={18} /></button></div>
       {stage === 'pick' && (
         <div className="stack rise" style={{ marginTop: 12 }}>
           <div className="camera" style={{ background: 'linear-gradient(160deg,#1b1b2e,#2c2a44)' }}>

@@ -117,9 +117,13 @@ export function Sheet({ onClose, children, title }) {
     </>
   );
 }
-export function Back({ to = 'today', label = 'Back' }) {
-  const { go } = useApp();
-  return <button className="back" onClick={() => (to === -1 ? history.back() : go(to))}><Icon name="back" size={18} />{label}</button>;
+// No visible back buttons: screens with the tab bar are left through the tabs or a swipe from the
+// left edge. Full-screen flows (no tab bar) get a small close button in the corner instead.
+const FULLSCREEN = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
+export function Back({ to = 'today' }) {
+  const { go, route } = useApp();
+  if (!FULLSCREEN.has(route)) return null;
+  return <button className="close-x" aria-label="Close" onClick={() => (to === -1 ? history.back() : go(to))}><Icon name="x" size={18} /></button>;
 }
 export function Loading({ label = 'Loading' }) {
   return <div className="center muted" style={{ padding: 40 }}><div className="typing"><span /><span /><span /></div><div className="small" style={{ marginTop: 8 }}>{label}</div></div>;
