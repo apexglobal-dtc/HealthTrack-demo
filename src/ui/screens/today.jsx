@@ -213,12 +213,12 @@ function TodayPager({ children }) {
       </div>
       {page === 0 && (
         <button className="swipe-hint" onClick={() => goTo(1)}>
-          <span>Swipe left for your plan, training, steps and more</span><Icon name="chev" size={16} />
+          <span>Your plan, training, steps and more</span><Icon name="chev" size={16} />
         </button>
       )}
       {page === 1 && (
         <button className="swipe-hint left" onClick={() => goTo(0)}>
-          <Icon name="back" size={16} /><span>Swipe right to go back to your status</span>
+          <Icon name="back" size={16} /><span>Back to your status</span>
         </button>
       )}
     </div>
