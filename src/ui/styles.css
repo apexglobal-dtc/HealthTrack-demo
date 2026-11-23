@@ -278,3 +278,41 @@ textarea.input { height: auto; padding: 12px 14px; }
 
 /* Close button on full-screen flows (replaces back buttons) */
 .close-x { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-left: auto; border-radius: 50%; background: var(--surface2); color: var(--muted); border: 1px solid var(--line); }
+
+/* ---------------- Health Track Pro (web dashboard frame) ---------------- */
+.stage.pro .stage-side { display: none; }
+.device.pro { width: min(1180px, calc(100vw - 32px)); height: min(880px, calc(100vh - 48px)); border-radius: 16px; padding: 0; overflow: hidden; }
+.device.pro > .ht { border-radius: 16px; }
+.scroll.pro { padding: 0 0 40px; }
+.probar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.pro-url { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--line); }
+.pro-url .dot { width: 10px; height: 10px; border-radius: 9px; background: var(--line); }
+.pro-url-text { margin-left: 10px; flex: 1; max-width: 420px; font-size: 12px; color: var(--muted); background: var(--surface); border-radius: 8px; padding: 4px 10px; display: flex; align-items: center; gap: 6px; }
+.pro-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 24px; }
+.pro-brand { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+.pro-brand img { height: 26px; background: #fff; border-radius: 6px; padding: 2px; }
+.pro-who { display: flex; align-items: center; gap: 8px; }
+.pro-crumb { padding: 0 24px 8px; }
+.pro-page { padding: 18px 24px 0; max-width: 1120px; margin: 0 auto; }
+.pro-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.pro-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.pro-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.pro-signin { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: start; padding-top: 12px; }
+.pro-acct.on { outline: 2px solid var(--violet); }
+.pro-table { display: flex; flex-direction: column; }
+.pro-tr { display: grid; grid-template-columns: 2fr .8fr 1fr .7fr .9fr 1.4fr; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px dashed var(--line); text-align: left; width: 100%; }
+.pro-tr.tap:hover { background: var(--surface2); }
+.pro-tr.pro-th5, .pro-th5 { grid-template-columns: 1.6fr .8fr .8fr 1fr 1fr; }
+.pro-th { font-weight: 700; }
+@media (max-width: 760px) {
+  .device.pro { width: 100%; height: 100%; border-radius: 0; }
+  .pro-page { padding: 14px 16px 0; }
+  .pro-head { padding: 10px 16px; }
+  .pro-crumb { padding: 0 16px 8px; }
+  .pro-stats { grid-template-columns: 1fr 1fr; }
+  .pro-signin { grid-template-columns: 1fr; }
+  .pro-cols, .pro-grid { grid-template-columns: 1fr; }
+  .pro-tr { grid-template-columns: 2fr .8fr .7fr .8fr 1.4fr; font-size: 13px; }
+  .pro-hide-sm { display: none; }
+}
+.device.pro .toast { left: auto; right: 24px; max-width: 420px; }

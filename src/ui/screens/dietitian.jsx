@@ -26,26 +26,25 @@ export function RdDashboard() {
   if (!r) return <Loading label="Loading your members" />;
   const s = r.stats;
   return (
-    <div className="stack">
-      <Back to="profile" />
+    <div className="pro-page stack">
       <div className="rise">
-        <div className="eyebrow">Health Track for Dietitians</div>
+        <div className="eyebrow">Health Track Pro · Dietitian</div>
         <h1 className="page">Your members</h1>
         <div className="row" style={{ gap: 8, marginTop: 4 }}>
           <Avatar name={r.dietitian.name} size={30} live />
           <span className="small"><b>{r.dietitian.name}</b>, {r.dietitian.credentials}</span>
         </div>
       </div>
-      <div className="grid2" style={{ gap: 8 }}>
+      <div className="pro-stats">
         <Stat label="Members" v={s.members} />
         <Stat label="Need attention" v={s.needAttention} color="var(--amber)" />
         <Stat label="Visits in the next 7 days" v={s.visitsThisWeek} />
         <Stat label="New messages" v={s.messages} color="var(--violet)" />
       </div>
       <div className="notice info"><Icon name="info" /><div className="small">Demo: the member marked <b>Live</b> is your own account, so changes the dietitian makes here show up in your app. The other members are samples. Members appear here only after they choose Plus + Dietitian and agree to share.</div></div>
-      <div className="col" style={{ gap: 10 }}>
+      <div className="pro-grid">
         {r.members.map((m) => (
-          <button key={m.id} className="card tap rise" style={{ textAlign: 'left' }} onClick={() => go('rd-member', { id: m.id })}>
+          <button key={m.id} className="card tap rise" style={{ textAlign: 'left' }} onClick={() => go('rd-member', { id: m.id, name: m.name })}>
             <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
               <Avatar name={m.name} live={m.live} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -82,8 +81,7 @@ export function RdMember() {
   const d = m && m.id === id ? m : data;
   if (!d) return <Loading label="Loading member" />;
   return (
-    <div className="stack">
-      <Back to="rd" />
+    <div className="pro-page stack">
       <div className="row rise" style={{ gap: 12 }}>
         <Avatar name={d.name} live={d.live} size={56} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -92,6 +90,9 @@ export function RdMember() {
           <div className="xs muted">{[d.age, d.sex, d.heightCm && `${d.heightCm} cm`].filter(Boolean).join(' · ')}</div>
         </div>
       </div>
+      {d.notShared?.length > 0 && <div className="xs muted"><Icon name="lock" size={12} /> Not shared by the member: {d.notShared.map((k) => ({ food: 'food', body: 'weight', activity: 'sleep and activity', labs: 'labs', cycle: 'cycle' }[k])).join(', ')}</div>}
+      <div className="pro-cols">
+      <div className="col" style={{ gap: 14 }}>
       <div className="card">
         <div className="kv"><span>Goals</span><b>{d.goals.join(', ') || '–'}</b></div>
         <div className="kv"><span>Diet</span><b>{DIET[d.diet] || d.diet}{d.allergies.length ? ` · allergic to ${d.allergies.join(', ')}` : ''}</b></div>
@@ -114,10 +115,14 @@ export function RdMember() {
           {d.labs.map((l) => <div key={l.key} className="kv"><span>{l.name}</span><b>{l.value} {l.unit} <span className={`chip ${l.status === 'Optimal' || l.status === 'In range' ? 'green' : 'amber'}`} style={{ fontSize: 11, padding: '2px 8px', marginLeft: 4 }}>{l.status}</span></b></div>)}
         </div>
       )}
+      </div>
+      <div className="col" style={{ gap: 14 }}>
       <PlanView d={d} />
       <Settings d={d} onSaved={setM} />
       <Notes d={d} onSaved={setM} />
       <Messages d={d} onSaved={setM} />
+      </div>
+      </div>
       <p className="xs muted">Shared with the member's consent under Plus + Dietitian. The member can stop sharing at any time from Privacy and data.</p>
     </div>
   );

@@ -12,6 +12,7 @@ import { Train, SetLogger, LiveActivity, WorkoutHistory, ManualWorkout, FitnessS
 import { Labs, LabUpload, MarkerDetail } from './screens/labs.jsx';
 import { Cycle, CycleLog } from './screens/cycle.jsx';
 import { RdDashboard, RdMember, MyDietitian } from './screens/dietitian.jsx';
+import { ProBar, ProSignIn, CoachDashboard, CoachAthlete, EmployerDashboard, ProviderDashboard, ProviderPatient, CareTeam, CareJoin, PRO_ROUTE_ROLE } from './screens/pro.jsx';
 import { Profile, Devices, Privacy, DeleteAccount, Plans, CancelOffer, About } from './screens/profile.jsx';
 
 const ROUTES = {
@@ -24,10 +25,12 @@ const ROUTES = {
   labs: Labs, 'lab-upload': LabUpload, marker: MarkerDetail, cycle: Cycle, 'cycle-log': CycleLog,
   setup: SetupEdit, devices: Devices, privacy: Privacy, 'delete-account': DeleteAccount, plans: Plans, cancel: CancelOffer, about: About,
   rd: RdDashboard, 'rd-member': RdMember, 'my-dietitian': MyDietitian,
+  'pro-signin': ProSignIn, 'pro-coach': CoachDashboard, 'pro-athlete': CoachAthlete, 'pro-employer': EmployerDashboard, 'pro-provider': ProviderDashboard, 'pro-patient': ProviderPatient,
+  'care-team': CareTeam, 'care-join': CareJoin,
 };
 const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', deficit: 'insights', mealplan: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
 const TAB_ROOTS = new Set(['today', 'insights', 'genie', 'progress', 'profile']);
-const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup', 'rd', 'rd-member']);
+const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup', ...Object.keys(PRO_ROUTE_ROLE)]);
 
 // Keeps one broken screen from blanking the whole app.
 class ScreenBoundary extends React.Component {
@@ -152,11 +155,12 @@ export default function App({ platform }) {
 
   const hold = useHold(() => setRadial(true), () => go('genie'));
   const Screen = ROUTES[route] || Today;
-  const tab = TAB_OF[route] || (['profile', 'setup', 'devices', 'privacy', 'delete-account', 'plans', 'cancel', 'labs', 'lab-upload', 'marker', 'cycle', 'cycle-log', 'about', 'my-dietitian'].includes(route) ? 'profile' : 'today');
+  const tab = TAB_OF[route] || (['profile', 'setup', 'devices', 'privacy', 'delete-account', 'plans', 'cancel', 'labs', 'lab-upload', 'marker', 'cycle', 'cycle-log', 'about', 'my-dietitian', 'care-team', 'care-join'].includes(route) ? 'profile' : 'today');
 
+  const isPro = phase === 'app' && route in PRO_ROUTE_ROLE;
   let body;
   if (phase === 'splash') body = <Splash />;
-  else if (phase === 'welcome') body = <Welcome onSignUp={() => { setPhase('trial'); }} onSignIn={() => { setAuthMode('signin'); setPhase('auth'); }} onDemo={async () => { await auth.demo(); await refreshBoot(); go('today'); setPhase('app'); }} />;
+  else if (phase === 'welcome') body = <Welcome onSignUp={() => { setPhase('trial'); }} onSignIn={() => { setAuthMode('signin'); setPhase('auth'); }} onDemo={async () => { await auth.demo(); await refreshBoot(); go('today'); setPhase('app'); }} onPro={async () => { if (!(await auth.session())) await auth.demo(); await refreshBoot(); go('pro-signin'); setPhase('app'); }} />;
   else if (phase === 'trial') body = <Trial onContinue={(billing) => { setPendingTrial(billing); setAuthMode('signup'); setPhase('auth'); }} onBack={() => setPhase('welcome')} />;
   else if (phase === 'auth') body = <Auth mode={authMode} setMode={setAuthMode} onBack={() => setPhase('welcome')} onDone={async () => { const b = await refreshBoot(); setPhase(b?.profile ? (authMode === 'signin' ? 'welcomeBack' : 'app') : 'onboarding'); }} />;
   else if (phase === 'welcomeBack') body = <WelcomeBack name={boot?.profile?.name} onYes={() => { go('profile'); setPhase('app'); }} onNo={() => { go('today'); setPhase('app'); }} />;
@@ -164,8 +168,8 @@ export default function App({ platform }) {
   else {
     body = (
       <>
-        <div ref={scrollRef} className={`scroll ${NO_NAV.has(route) ? 'noNav' : ''}`} key={route} onTouchStart={edgeStart} onTouchEnd={edgeEnd}>
-          <StatusBar />
+        <div ref={scrollRef} className={`scroll ${NO_NAV.has(route) ? 'noNav' : ''} ${isPro ? 'pro' : ''}`} key={route} onTouchStart={edgeStart} onTouchEnd={edgeEnd}>
+          {isPro ? <ProBar /> : <StatusBar />}
           {!NO_NAV.has(route) && <TopBar />}
           <ScreenBoundary key={route + JSON.stringify(params)} onHome={() => go('today')}><Screen /></ScreenBoundary>
         </div>
@@ -190,7 +194,7 @@ export default function App({ platform }) {
 
   return (
     <AppCtx.Provider value={ctx}>
-      <div className="stage">
+      <div className={`stage ${isPro ? 'pro' : ''}`}>
         <aside className="stage-side">
           <img src={asset('logo.png')} alt="Health Track" style={{ height: 44, background: '#fff', borderRadius: 10, padding: 4 }} />
           <h1>Health Track demo</h1>
@@ -202,7 +206,7 @@ export default function App({ platform }) {
           </ul>
           {phase === 'app' && <button className="badge" onClick={() => setThemePref(mode === 'night' ? 'day' : 'night')}>Switch to {mode === 'night' ? 'day' : 'night'} theme</button>}
         </aside>
-        <div className="device">
+        <div className={`device ${isPro ? 'pro' : ''}`}>
           <div className="ht" data-mode={mode}>
             {body}
             {toastMsg && <div className="toast" role="status"><span>{toastMsg.msg}</span>{toastMsg.undo && <button onClick={() => { toastMsg.undo(); setToast(null); }} style={{ color: 'inherit', textDecoration: 'underline' }}>Undo</button>}</div>}

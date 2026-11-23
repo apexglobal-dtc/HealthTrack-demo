@@ -16,7 +16,7 @@ export function Splash() {
   );
 }
 
-export function Welcome({ onSignUp, onSignIn, onDemo }) {
+export function Welcome({ onSignUp, onSignIn, onDemo, onPro }) {
   const [busy, setBusy] = useState(false);
   return (
     <div style={{ position: 'absolute', inset: 0, background: '#E3F2F4', color: '#163C82', overflow: 'auto' }}>
@@ -35,6 +35,7 @@ export function Welcome({ onSignUp, onSignIn, onDemo }) {
         <button className="btn primary block" onClick={onSignUp} style={{ height: 56, borderRadius: 99 }}>Sign up</button>
         <button className="btn block" onClick={onSignIn} style={{ marginTop: 10, height: 56, borderRadius: 99, background: '#fff', color: '#163C82' }}>Sign in</button>
         <button className="btn block" disabled={busy} onClick={async () => { setBusy(true); try { await onDemo(); } finally { setBusy(false); } }} style={{ marginTop: 10, height: 44, color: '#0A7FA6', fontSize: 15 }}>{busy ? 'Loading a month of demo data...' : 'Explore the demo with sample data'}</button>
+        {onPro && <button className="link" onClick={onPro} style={{ display: 'block', margin: '14px auto 0', fontSize: 13, color: '#4A6175' }}>Dietitian, coach, employer or clinic? <b style={{ color: '#0A7FA6' }}>Health Track Pro</b></button>}
       </div>
     </div>
   );

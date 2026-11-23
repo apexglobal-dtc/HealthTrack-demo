@@ -120,7 +120,7 @@ export function Sheet({ onClose, children, title }) {
 }
 // No visible back buttons: screens with the tab bar are left through the tabs or a swipe from the
 // left edge. Full-screen flows (no tab bar) get a small close button in the corner instead.
-const FULLSCREEN = new Set(['logger', 'live', 'genie-voice', 'food', 'setup', 'rd', 'rd-member']);
+const FULLSCREEN = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
 export function Back({ to = 'today' }) {
   const { go, route } = useApp();
   if (!FULLSCREEN.has(route)) return null;

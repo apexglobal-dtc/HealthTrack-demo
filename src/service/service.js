@@ -4,7 +4,8 @@
 // Every method takes the signed-in user's id; storage and adapters are injected.
 
 import { addDays, daysBetween, isoDate, round, mean, sum, uid, fmtHours, minToClock, ageFrom, weekday, clockToMin } from '../engine/util.js';
-import { ENGINE_VERSION, WEIGHTS, BANDS, checkinScore } from '../engine/wellness.js';
+import { ENGINE_VERSION, WEIGHTS, BANDS, checkinScore, sessionLoad } from '../engine/wellness.js';
+import { PRO_ROLES, SHARE, roleByCode, cleanShare, defaultShare, SESSIONS, coachAlerts, suggestSession, sampleAthletes, employerProgram, providerAlerts, samplePatients } from '../engine/pro.js';
 import { predict, phaseOn, SYMPTOMS, FLOWS, cycleLengths } from '../engine/cycle.js';
 import { ACTIONS, LADDER, actionById, habitState, successRate, fill } from '../engine/onething.js';
 import { fitnessScore, hrZones, loadMetrics, deloadSignals, buildPlan, EXERCISES, e1rm, roundToPlates } from '../engine/fitness.js';
@@ -25,8 +26,8 @@ export const PRICING = {
   trialDays: 30,
 };
 
-const DOCS = ['profile', 'days', 'history', 'train', 'cycle', 'labs', 'chat', 'memory', 'devices', 'reminders', 'mealplan', 'rd'];
-const EMPTY = { days: {}, history: [], train: { sets: [], workouts: [], plan: null, tests: [], moved: [], overrides: {} }, cycle: { enabled: false, periods: [], flow: {}, symptoms: {} }, labs: { results: [], reports: [] }, chat: { messages: [], actions: [] }, memory: { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] }, devices: [], reminders: [], mealplan: { prefs: null, overrides: {}, notes: {}, grocery: [] }, rd: { member: null, roster: {} } };
+const DOCS = ['profile', 'days', 'history', 'train', 'cycle', 'labs', 'chat', 'memory', 'devices', 'reminders', 'mealplan', 'rd', 'care'];
+const EMPTY = { days: {}, history: [], train: { sets: [], workouts: [], plan: null, tests: [], moved: [], overrides: {} }, cycle: { enabled: false, periods: [], flow: {}, symptoms: {} }, labs: { results: [], reports: [] }, chat: { messages: [], actions: [] }, memory: { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] }, devices: [], reminders: [], mealplan: { prefs: null, overrides: {}, notes: {}, grocery: [] }, rd: { member: null, roster: {} }, care: { links: null, coach: {}, employer: {}, provider: {}, referrals: [] } };
 
 export function createService({ store, wearables, ai, now = () => new Date() }) {
   const today = () => isoDate(now());
@@ -700,9 +701,20 @@ Request: ${req}`;
   }
   async function allMembers(u) {
     const rd = await rdDoc(u);
-    const me = await memberSelf(u);
+    const care = await careDoc(u);
+    const link = care.links.dietitian;
+    const me = link?.active ? limitShared(await memberSelf(u), link.share) : null;
     const others = sampleMembers(today(), addDays).map((sm) => sampleDetail(rd, sm));
-    return [me, ...others].map((m) => ({ ...m, alerts: rdAlerts(m) }));
+    return [me, ...others].filter(Boolean).map((m) => ({ ...m, alerts: rdAlerts(m) }));
+  }
+  // Remove what the member chose not to share.
+  function limitShared(m, share = {}) {
+    const x = { ...m, share, notShared: Object.keys(SHARE).filter((k) => !share[k]) };
+    if (!share.food) { x.days = x.days.map((d) => ({ ...d, kcal: null, protein: null, fiber: null })); x.kcalAvg = x.proteinAvg = x.fiberAvg = null; x.logDays7 = null; }
+    if (!share.body) { x.weightKg = null; x.weightTrend = []; x.weeklyLossKg = null; x.targetKg = null; }
+    if (!share.activity) { x.days = x.days.map((d) => ({ ...d, burned: null, sleep: null, steps: null })); x.burnAvg = x.sleepAvg = x.stepsAvg = null; }
+    if (!share.labs) x.labs = [];
+    return x;
   }
   const brief = (m) => ({ id: m.id, name: m.name, age: m.age, goals: m.goals, diet: m.diet, live: !!m.live, nextVisit: m.nextVisit, lastVisit: m.lastVisit, logDays7: m.logDays7, weightKg: m.weightKg, weeklyLossKg: m.weeklyLossKg, alerts: m.alerts, unread: m.unread });
   async function rdRoster(u) {
@@ -717,7 +729,7 @@ Request: ${req}`;
   async function rdMember(u, { id }) {
     const list = await allMembers(u);
     const m = list.find((x) => x.id === id);
-    if (!m) throw new Error('Member not found');
+    if (!m) throw new Error(id === 'me' ? 'This member has stopped sharing with you.' : 'Member not found');
     const recipes = RECIPES.filter((r) => fitsPersonSafe(r, m)).map((r) => ({ id: r.id, name: r.name, slot: r.slot }));
     return { ...m, dietitian: DIETITIAN, recipes, paces: Object.values(PACES).map((x) => ({ id: x.id, label: x.label || x.id })) };
   }
@@ -765,6 +777,210 @@ Request: ${req}`;
     rd.member.messages = [...(rd.member.messages || []), { from: 'member', at: isoDate(now()) + 'T' + minToClock24(nowMin()), text: tx }];
     await save(u, 'rd', rd);
     return myDietitian(u);
+  }
+
+  // ---------------- Care team and Health Track Pro ----------------
+  // The member decides who sees what. Every professional view reads through these links.
+  async function careDoc(u) {
+    const care = (await store.get(u, 'care')) || structuredClone(EMPTY.care);
+    if (!care.links) {
+      const rd = await rdDoc(u);
+      care.links = { dietitian: { active: true, since: rd.member.since, share: defaultShare('dietitian') } };
+      await save(u, 'care', care);
+    }
+    for (const k of ['coach', 'employer', 'provider']) care[k] ||= {};
+    care.referrals ||= [];
+    return care;
+  }
+  const roleView = (r) => ({ id: r.id, label: r.label, product: r.product, tier: r.tier, status: r.status, person: r.person, asks: r.asks, never: r.never, pitch: r.pitch, groupOnly: !!r.groupOnly, minGroup: r.minGroup || null, actions: r.actions, alerts: r.alerts, route: r.route, email: r.email });
+  async function careTeam(u) {
+    const care = await careDoc(u);
+    const rd = await rdDoc(u);
+    const nowD = today();
+    const roles = Object.values(PRO_ROLES).map((r) => {
+      const link = care.links[r.id] || null;
+      const extra = {};
+      if (r.id === 'dietitian') { extra.nextVisit = rd.member.nextVisit; extra.settings = rd.member.settings || {}; extra.lastMessage = (rd.member.messages || []).at(-1) || null; }
+      if (r.id === 'coach') { extra.session = care.coach.sessions?.me || null; extra.announcements = (care.coach.announcements || []).slice(-3); }
+      if (r.id === 'employer') { extra.announcements = (care.employer.announcements || []).slice(-3); extra.challenges = care.employer.challenges || []; }
+      if (r.id === 'provider') { extra.orders = care.provider.patients?.me?.orders || []; }
+      return { ...roleView(r), link, ...extra };
+    });
+    return { today: nowD, roles, share: SHARE, referrals: care.referrals.filter((x) => !x.done), codes: Object.values(PRO_ROLES).map((r) => ({ code: r.code, label: r.label })) };
+  }
+  async function careLookup(u, { code }) {
+    const r = roleByCode(code);
+    if (!r) throw new Error('That code was not found. Check it with the person who gave it to you.');
+    const care = await careDoc(u);
+    return { ...roleView(r), link: care.links[r.id] || null, share: SHARE, suggested: defaultShare(r.id) };
+  }
+  async function careConnect(u, { role, share }) {
+    if (!PRO_ROLES[role]) throw new Error('Unknown professional');
+    const care = await careDoc(u);
+    const prev = care.links[role];
+    care.links[role] = { active: true, since: prev?.active ? prev.since : today(), share: cleanShare(role, share || defaultShare(role)) };
+    for (const x of care.referrals) if (x.to === role) x.done = true;
+    await save(u, 'care', care);
+    return careTeam(u);
+  }
+  async function careStop(u, { role }) {
+    const care = await careDoc(u);
+    if (care.links[role]) care.links[role] = { ...care.links[role], active: false, stopped: today() };
+    await save(u, 'care', care);
+    return careTeam(u);
+  }
+  async function careDecline(u, { index }) {
+    const care = await careDoc(u);
+    const open = care.referrals.filter((x) => !x.done);
+    if (open[index]) open[index].done = true;
+    await save(u, 'care', care);
+    return careTeam(u);
+  }
+  const stampNow = () => isoDate(now()) + 'T' + minToClock24(nowMin());
+  const cleanText = (text, what = 'a note') => { const tx = String(text || '').trim().slice(0, 2000); if (!tx) throw new Error(`Write ${what} first.`); return tx; };
+
+  // ----- coach -----
+  async function liveAthlete(u, link) {
+    const { data, wear } = await ctx(u);
+    const t = today();
+    const p = data.profile;
+    const c = computeCore(data, wear, t);
+    const sh = link.share || {};
+    const readiness7 = [];
+    const load7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = addDays(t, -i);
+      readiness7.push(sh.activity ? computeCore(data, wear, d).ready ?? null : null);
+      load7.push(sh.activity ? Math.round(sum(c.asm.workouts.filter((w) => w.date === d).map((w) => sessionLoad(w, c.hm.value)))) : null);
+    }
+    let checkins7 = 0;
+    for (let i = 0; i < 7; i++) if (data.days[addDays(t, -i)]?.checkin) checkins7++;
+    return { id: 'me', name: p.name || 'You', live: true, position: 'Member', age: ageFrom(p.dob, t), readiness: sh.activity ? c.ready : null, sleepH: sh.activity && c.night?.tstH != null ? round(c.night.tstH, 1) : null,
+      acwr: sh.activity ? c.lb.acwr : null, checkins7, availability: data.days[t]?.checkin?.flags?.includes('unwell') ? 'modify' : 'available', readiness7, load7, share: sh, notShared: Object.keys(SHARE).filter((k) => !sh[k]) };
+  }
+  async function athletes(u) {
+    const care = await careDoc(u);
+    const link = care.links.coach;
+    const list = [...(link?.active ? [await liveAthlete(u, link)] : []), ...sampleAthletes()];
+    const cd = care.coach;
+    return list.map((a) => ({ ...a, alerts: coachAlerts(a), suggested: suggestSession(a), session: cd.sessions?.[a.id] || null, notes: cd.notes?.[a.id] || [] }));
+  }
+  async function coachRoster(u) {
+    const list = await athletes(u);
+    const care = await careDoc(u);
+    const order = { warn: 2, info: 1 };
+    const sorted = [...list].sort((a, b) => Math.max(0, ...b.alerts.map((x) => order[x.level] || 0)) - Math.max(0, ...a.alerts.map((x) => order[x.level] || 0)) || b.alerts.length - a.alerts.length);
+    return { coach: PRO_ROLES.coach.person, today: today(), athletes: sorted, sessions: SESSIONS, announcements: care.coach.announcements || [],
+      stats: { athletes: list.length, ready: list.filter((a) => a.readiness != null && a.readiness >= 60).length, flagged: list.filter((a) => a.alerts.some((x) => x.level === 'warn')).length, checkedIn: list.filter((a) => a.checkins7 >= 4).length } };
+  }
+  async function coachAthlete(u, { id }) {
+    const a = (await athletes(u)).find((x) => x.id === id);
+    if (!a) throw new Error(id === 'me' ? 'This athlete has stopped sharing with you.' : 'Athlete not found');
+    return { ...a, coach: PRO_ROLES.coach.person, sessions: SESSIONS };
+  }
+  async function coachSet(u, { id, session }) {
+    if (!SESSIONS[session]) throw new Error('Pick a session');
+    const care = await careDoc(u);
+    care.coach.sessions = { ...(care.coach.sessions || {}), [id]: { session, label: SESSIONS[session], at: stampNow() } };
+    await save(u, 'care', care);
+    return coachAthlete(u, { id });
+  }
+  async function coachNote(u, { id, text }) {
+    const care = await careDoc(u);
+    care.coach.notes = { ...(care.coach.notes || {}), [id]: [...(care.coach.notes?.[id] || []), { at: stampNow(), text: cleanText(text) }] };
+    await save(u, 'care', care);
+    return coachAthlete(u, { id });
+  }
+  async function coachAnnounce(u, { text }) {
+    const care = await careDoc(u);
+    care.coach.announcements = [...(care.coach.announcements || []), { at: stampNow(), text: cleanText(text, 'a message') }];
+    await save(u, 'care', care);
+    return coachRoster(u);
+  }
+
+  // ----- employer (group totals only) -----
+  async function employerDash(u) {
+    const care = await careDoc(u);
+    const joined = !!care.links.employer?.active;
+    return { lead: PRO_ROLES.employer.person, minGroup: PRO_ROLES.employer.minGroup, ...employerProgram(joined), challenges: [...employerProgram(joined).challenges, ...(care.employer.challenges || [])], announcements: care.employer.announcements || [], youJoined: joined };
+  }
+  async function employerAnnounce(u, { text }) {
+    const care = await careDoc(u);
+    care.employer.announcements = [...(care.employer.announcements || []), { at: stampNow(), text: cleanText(text, 'a message') }];
+    await save(u, 'care', care);
+    return employerDash(u);
+  }
+  async function employerChallenge(u, { name, kind, days }) {
+    const care = await careDoc(u);
+    const nm = String(name || '').trim().slice(0, 60) || `${kind || 'Steps'} challenge`;
+    care.employer.challenges = [...(care.employer.challenges || []), { name: nm, kind: ['Steps', 'Sleep', 'Breathing', 'Hydration'].includes(kind) ? kind : 'Steps', joined: 0, days: [7, 14, 21, 28].includes(Number(days)) ? Number(days) : 14, dayNow: 0, startsOn: addDays(today(), 1) }];
+    await save(u, 'care', care);
+    return employerDash(u);
+  }
+
+  // ----- provider -----
+  async function livePatient(u, link) {
+    const { data, wear } = await ctx(u);
+    const t = today();
+    const p = data.profile;
+    const c = computeCore(data, wear, t);
+    const sh = link.share || {};
+    const nights = c.asm.nights.filter((n) => n.rhr != null);
+    const rhrOf = (from, to) => { const xs = nights.filter((n) => n.date > addDays(t, -from) && n.date <= addDays(t, -to)).map((n) => n.rhr); return xs.length ? mean(xs) : null; };
+    const recent = rhrOf(7, 0), older = rhrOf(35, 28);
+    const sleeps = c.asm.nights.filter((n) => n.date > addDays(t, -14)).map((n) => n.tstH);
+    const steps = []; for (let i = 1; i <= 14; i++) if (c.asm.stepsByDate[addDays(t, -i)] != null) steps.push(c.asm.stepsByDate[addDays(t, -i)]);
+    const wl = p.weightLog || [];
+    const w90 = wl.filter((x) => x.date >= addDays(t, -90));
+    const results = data.labs?.results || [];
+    const labs = [];
+    for (const key of [...new Set(results.map((r) => r.key))]) {
+      const rs = results.filter((r) => r.key === key).sort((a, b) => (a.date < b.date ? -1 : 1));
+      const m = markerByKey(key); if (!m) continue;
+      const last = rs.at(-1), prev = rs.at(-2);
+      labs.push({ key, name: m.name, value: last.value, prev: prev?.value ?? null, unit: m.unit, status: markerStatus(m, last.value).word, date: last.date });
+    }
+    const lastLab = labs.map((l) => l.date).sort().at(-1);
+    return { id: 'me', name: p.name || 'You', live: true, age: ageFrom(p.dob, t), sex: p.sex, conditions: p.conditions || [],
+      weightKg: sh.body ? p.weightKg || null : null, weightChange90: sh.body && w90.length > 1 ? round(w90.at(-1).kg - w90[0].kg, 1) : null,
+      rhr: sh.activity && recent ? round(recent) : null, rhrTrend: sh.activity && recent && older ? round(recent - older) : null,
+      sleepAvg: sh.activity && sleeps.length ? round(mean(sleeps), 1) : null, stepsAvg: sh.activity && steps.length ? round(mean(steps)) : null,
+      labs: sh.labs ? labs : [], labsMonthsAgo: sh.labs && lastLab ? Math.floor(daysBetween(lastLab, t) / 30) : null,
+      lastVisit: addDays(t, -120), nextVisit: null, share: sh, notShared: Object.keys(SHARE).filter((k) => !sh[k]) };
+  }
+  async function patients(u) {
+    const care = await careDoc(u);
+    const link = care.links.provider;
+    const t = today();
+    const samples = samplePatients().map((x) => ({ ...x, lastVisit: addDays(t, x.lastVisit), nextVisit: x.nextVisit != null ? addDays(t, x.nextVisit) : null }));
+    const list = [...(link?.active ? [await livePatient(u, link)] : []), ...samples];
+    return list.map((x) => { const extra = care.provider.patients?.[x.id] || {}; return { ...x, alerts: providerAlerts(x), notes: extra.notes || [], orders: extra.orders || [], referred: extra.referred || null }; });
+  }
+  async function providerRoster(u) {
+    const list = await patients(u);
+    const t = today();
+    const sorted = [...list].sort((a, b) => b.alerts.filter((x) => x.level === 'warn').length - a.alerts.filter((x) => x.level === 'warn').length || b.alerts.length - a.alerts.length);
+    return { provider: PRO_ROLES.provider.person, today: t, patients: sorted,
+      stats: { patients: list.length, careGaps: list.filter((p) => p.alerts.some((a) => a.key === 'overdue')).length, rising: list.filter((p) => p.alerts.some((a) => a.key.startsWith('rise_'))).length, visitsSoon: list.filter((p) => p.nextVisit && daysBetween(t, p.nextVisit) <= 14).length } };
+  }
+  async function providerPatient(u, { id }) {
+    const x = (await patients(u)).find((p) => p.id === id);
+    if (!x) throw new Error(id === 'me' ? 'This patient has stopped sharing with you.' : 'Patient not found');
+    return { ...x, provider: PRO_ROLES.provider.person, dietitian: PRO_ROLES.dietitian.person, labOptions: ['HbA1c', 'Lipid panel', 'Ferritin and iron studies', 'Vitamin D', 'Basic metabolic panel'] };
+  }
+  async function providerAct(u, { id, op, text, test }) {
+    const care = await careDoc(u);
+    const pts = (care.provider.patients ||= {});
+    const rec = (pts[id] ||= {});
+    if (op === 'note') rec.notes = [...(rec.notes || []), { at: stampNow(), text: cleanText(text) }];
+    else if (op === 'order') rec.orders = [...(rec.orders || []), { at: stampNow(), test: String(test || 'Follow-up labs').slice(0, 60), status: 'Ordered' }];
+    else if (op === 'refer') {
+      rec.referred = { to: 'dietitian', at: stampNow(), reason: String(text || '').trim().slice(0, 300) || 'Nutrition support between visits' };
+      if (id === 'me' && !care.links.dietitian?.active) care.referrals.push({ from: 'provider', to: 'dietitian', at: stampNow(), reason: rec.referred.reason });
+      if (id === 'me') { const rd = await rdDoc(u); rd.member.notes = [...(rd.member.notes || []), { at: stampNow(), text: `Referral from ${PRO_ROLES.provider.person.name}: ${rec.referred.reason}` }]; await save(u, 'rd', rd); }
+    } else throw new Error('Unknown action');
+    await save(u, 'care', care);
+    return providerPatient(u, { id });
   }
   const minToClock24 = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
@@ -1292,7 +1508,7 @@ Request: ${req}`;
     insights, sleepDetail, recoveryDetail, nutritionDay, genieChat, genieStream, genieAction, flagAnswer, getMemory, updateMemory, geniePacket,
     progress, updateGoals, train, setTrainingGoal, logSet, logWorkout, deleteWorkout, overrideSession, logFitnessTest,
     labs, readLabReport, confirmLabs, cycle, setCycle, logCycleDay, deleteCycleData,
-    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, rdRoster, rdMember, rdSave, rdNote, rdMessage, myDietitian, memberMessage, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
+    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, rdRoster, rdMember, rdSave, rdNote, rdMessage, myDietitian, memberMessage, careTeam, careLookup, careConnect, careStop, careDecline, coachRoster, coachAthlete, coachSet, coachNote, coachAnnounce, employerDash, employerAnnounce, employerChallenge, providerRoster, providerPatient, providerAct, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
   };
 }
 
