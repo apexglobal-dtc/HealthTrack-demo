@@ -11,6 +11,7 @@ import { Progress, Goals, WeeklyReview } from './screens/progress.jsx';
 import { Train, SetLogger, LiveActivity, WorkoutHistory, ManualWorkout, FitnessScore, LoadBalance, TrainingSetup } from './screens/train.jsx';
 import { Labs, LabUpload, MarkerDetail } from './screens/labs.jsx';
 import { Cycle, CycleLog } from './screens/cycle.jsx';
+import { RdDashboard, RdMember, MyDietitian } from './screens/dietitian.jsx';
 import { Profile, Devices, Privacy, DeleteAccount, Plans, CancelOffer, About } from './screens/profile.jsx';
 
 const ROUTES = {
@@ -22,10 +23,11 @@ const ROUTES = {
   fitness: FitnessScore, load: LoadBalance, 'train-setup': TrainingSetup,
   labs: Labs, 'lab-upload': LabUpload, marker: MarkerDetail, cycle: Cycle, 'cycle-log': CycleLog,
   setup: SetupEdit, devices: Devices, privacy: Privacy, 'delete-account': DeleteAccount, plans: Plans, cancel: CancelOffer, about: About,
+  rd: RdDashboard, 'rd-member': RdMember, 'my-dietitian': MyDietitian,
 };
 const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', deficit: 'insights', mealplan: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
 const TAB_ROOTS = new Set(['today', 'insights', 'genie', 'progress', 'profile']);
-const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
+const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup', 'rd', 'rd-member']);
 
 // Keeps one broken screen from blanking the whole app.
 class ScreenBoundary extends React.Component {
@@ -150,7 +152,7 @@ export default function App({ platform }) {
 
   const hold = useHold(() => setRadial(true), () => go('genie'));
   const Screen = ROUTES[route] || Today;
-  const tab = TAB_OF[route] || (['profile', 'setup', 'devices', 'privacy', 'delete-account', 'plans', 'cancel', 'labs', 'lab-upload', 'marker', 'cycle', 'cycle-log', 'about'].includes(route) ? 'profile' : 'today');
+  const tab = TAB_OF[route] || (['profile', 'setup', 'devices', 'privacy', 'delete-account', 'plans', 'cancel', 'labs', 'lab-upload', 'marker', 'cycle', 'cycle-log', 'about', 'my-dietitian'].includes(route) ? 'profile' : 'today');
 
   let body;
   if (phase === 'splash') body = <Splash />;

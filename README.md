@@ -26,6 +26,7 @@ There are two ways to run the same code:
 - Train: plan from goal/days/minutes, daily verdict (Push / As planned / Lighter / Rest) from Readiness, set logger with 2-for-2 progression and rest timer, live workout, history, Fitness Score, load balance (ACWR) and deload check, safety screen.
 - Labs: PDF upload (read in the browser with pdf.js), rule parser plus Claude, confirm each value, Foundation score, marker detail with range bar.
 - Cycle: dial, prediction window with confidence, phase notes, symptoms and flow, life stage, on-device or cloud storage, delete all.
+- Dietitian (Plus + Dietitian): a separate dashboard for the registered dietitian (Profile, Dietitian dashboard). Member list with alerts (low logging, fast weight loss, low protein or fiber, eating below a set calorie floor, short sleep, labs outside the optimal range, new messages), member detail (goal, 7-day consumed against burned, protein, weight trend, labs, today's plan), dietitian settings on the plan (protein in g per kg, minimum calories, weight loss pace, recipes not to offer) that the member's meal plan follows and marks "Set by your dietitian", private visit notes, and two-way messages. In the demo the dietitian is Dana Lee, RDN, LD; your own account is the live member and four sample members sit beside it. The member sees "Your dietitian" in Profile and on the meal plan.
 - Profile: devices, plans and the cancel-save offer ($9.99 a month or $89.99 a year Essentials), privacy and consent toggles, export, delete account, day/night theme.
 
 ## Look and feel: Sea Mist

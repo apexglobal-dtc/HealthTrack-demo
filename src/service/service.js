@@ -15,6 +15,7 @@ import { DEVICE_CATALOG, deviceById, simulatedPeriods, simulateStrengthHistory }
 import { dayFacts, planByCategory, buildCheckins, mealSlot } from './dayplan.js';
 import { nutritionGoal, buildDay, groceryList, parseRequest, candidates, recipeById, RECIPES, SLOT_LABEL } from '../engine/mealplan.js';
 import { caloriesBurned, energyBalance } from '../engine/burn.js';
+import { DIETITIAN, cleanSettings, applyDietitian, rdAlerts, sampleMembers } from '../engine/rd.js';
 import { PACES, deficitPlan, deficitSafety, dayDeficit, weekSummary, projection, calorieFloor } from '../engine/deficit.js';
 import { computeCore, buildToday, mergeSources, todaysPlanned, nextTrainingDay, mealIdea, factsFor } from './compute.js';
 
@@ -24,8 +25,8 @@ export const PRICING = {
   trialDays: 30,
 };
 
-const DOCS = ['profile', 'days', 'history', 'train', 'cycle', 'labs', 'chat', 'memory', 'devices', 'reminders', 'mealplan'];
-const EMPTY = { days: {}, history: [], train: { sets: [], workouts: [], plan: null, tests: [], moved: [], overrides: {} }, cycle: { enabled: false, periods: [], flow: {}, symptoms: {} }, labs: { results: [], reports: [] }, chat: { messages: [], actions: [] }, memory: { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] }, devices: [], reminders: [], mealplan: { prefs: null, overrides: {}, notes: {}, grocery: [] } };
+const DOCS = ['profile', 'days', 'history', 'train', 'cycle', 'labs', 'chat', 'memory', 'devices', 'reminders', 'mealplan', 'rd'];
+const EMPTY = { days: {}, history: [], train: { sets: [], workouts: [], plan: null, tests: [], moved: [], overrides: {} }, cycle: { enabled: false, periods: [], flow: {}, symptoms: {} }, labs: { results: [], reports: [] }, chat: { messages: [], actions: [] }, memory: { goals: [], constraints: [], preferences: { tone: 'gentle' }, notes: [] }, devices: [], reminders: [], mealplan: { prefs: null, overrides: {}, notes: {}, grocery: [] }, rd: { member: null, roster: {} } };
 
 export function createService({ store, wearables, ai, now = () => new Date() }) {
   const today = () => isoDate(now());
@@ -529,8 +530,9 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     let recent = [];
     for (let i = -2; i < n; i++) {
       const d = addDays(from, i);
-      const goal = goalFor(data, c, d, t);
-      const day = buildDay({ date: d, goal, profile: data.profile, prefs, override: mp.overrides?.[d] || {}, recent, logged: loggedSlots(data, d) });
+      const rdm = data.rd?.member;
+      const goal = applyDietitian(goalFor(data, c, d, t), rdm, data.profile);
+      const day = buildDay({ date: d, goal, profile: data.profile, prefs: { ...prefs, avoid: rdm?.settings?.avoid || [] }, override: mp.overrides?.[d] || {}, recent, logged: loggedSlots(data, d) });
       recent = [...recent, ...day.meals.map((m) => m.recipeId).filter(Boolean)].slice(-8);
       if (i >= 0) days.push({ ...day, goal });
     }
@@ -635,6 +637,136 @@ Request: ${req}`;
     await save(u, 'mealplan', mp);
     return { ok: true, explanation: result.explanation, by: result.by };
   }
+
+  // ---------------- Dietitian (Plus + Dietitian, HT 1.0) ----------------
+  // Demo: the signed-in account is one member of a sample dietitian's list, next to four sample members.
+  async function rdDoc(u) {
+    const rd = (await store.get(u, 'rd')) || structuredClone(EMPTY.rd);
+    rd.roster ||= {};
+    if (!rd.member) {
+      const t = today();
+      rd.member = { dietitian: DIETITIAN, since: addDays(t, -14), lastVisit: addDays(t, -14), nextVisit: addDays(t, 5), settings: {}, notes: [{ at: addDays(t, -14) + 'T10:30', text: 'First visit. Goals: steadier energy and better sleep. Agreed to log meals with photos for two weeks.' }],
+        messages: [{ from: 'rd', at: addDays(t, -14) + 'T11:00', text: 'Great meeting you today! I have looked at your sleep and meal logs. Keep snapping your meals and I will check in before our next visit.' }] };
+      await save(u, 'rd', rd);
+    }
+    return rd;
+  }
+  const kOf = (meals, k) => sum((meals || []).map((m) => m[k] || 0));
+  function labList(data) {
+    const latest = {};
+    for (const r of data.labs?.results || []) if (!latest[r.key] || r.date >= latest[r.key].date) latest[r.key] = r;
+    return Object.values(latest).map((r) => { const m = markerByKey(r.key); return m ? { key: r.key, name: m.name, value: r.value, unit: m.unit, status: markerStatus(m, r.value).word, date: r.date } : null; }).filter(Boolean);
+  }
+  async function memberSelf(u) {
+    const { data, wear } = await ctx(u);
+    const rd = await rdDoc(u);
+    data.rd = rd;
+    const t = today();
+    const p = data.profile;
+    const c = computeCore(data, wear, t);
+    const plan = await todayMealPlan(u, data, c);
+    const goal = plan.goal;
+    const days = [];
+    for (let i = 7; i >= 1; i--) {
+      const d = addDays(t, -i);
+      const meals = data.days[d]?.meals || [];
+      const cd = computeCore(data, wear, d);
+      days.push({ date: d, kcal: meals.length ? round(kOf(meals, 'kcal')) : null, protein: meals.length ? round(kOf(meals, 'protein')) : null, fiber: meals.length ? round(kOf(meals, 'fiber')) : null, burned: burnFor(data, cd, d).total, sleep: cd.night?.tstH ?? null, steps: cd.asm.stepsByDate[d] ?? null });
+    }
+    const logged = days.filter((d) => d.kcal != null);
+    const avg = (arr) => (arr.length ? round(mean(arr)) : null);
+    const wl = (p.weightLog?.length ? p.weightLog : p.weightKg ? [{ date: p.createdAt || t, kg: p.weightKg }] : []).slice(-12).map((x) => ({ date: x.date, kg: x.kg }));
+    const m = rd.member;
+    const unread = (m.messages || []).filter((x) => x.from === 'member' && !x.read).length;
+    return {
+      id: 'me', name: p.name || 'You', age: ageFrom(p.dob, t), sex: p.sex, heightCm: p.heightCm, weightKg: p.weightKg || null, targetKg: p.targetWeightKg || null, goals: p.goals || [], weightGoal: p.weightGoal || 'maintain',
+      diet: p.diet || 'none', allergies: p.allergies || [], since: m.since, lastVisit: m.lastVisit, nextVisit: m.nextVisit, live: true,
+      days, logDays7: logged.length, kcalAvg: avg(logged.map((d) => d.kcal)), proteinAvg: avg(logged.map((d) => d.protein)), fiberAvg: avg(logged.map((d) => d.fiber)), burnAvg: avg(days.map((d) => d.burned)),
+      kcalTarget: goal.kcal, proteinTarget: goal.protein, fiberTarget: goal.fiber, sleepAvg: days.some((d) => d.sleep) ? round(mean(days.filter((d) => d.sleep).map((d) => d.sleep)), 1) : null, stepsAvg: avg(days.filter((d) => d.steps != null).map((d) => d.steps)),
+      weightTrend: wl, weeklyLossKg: wl.length > 1 ? round(wl[wl.length - 2].kg - wl[wl.length - 1].kg, 1) : null, labs: labList(data),
+      settings: m.settings || {}, kcalFloor: m.settings?.kcalFloor || null, notes: m.notes || [], messages: m.messages || [], unread, plan, pace: p.deficitPace || null,
+    };
+  }
+  function sampleDetail(rd, sm) {
+    const t = today();
+    const extra = rd.roster[sm.id] || {};
+    const settings = extra.settings || {};
+    const profile = { name: sm.name, sex: sm.sex, weightKg: sm.weightKg, heightCm: sm.heightCm, goals: sm.goals, weightGoal: sm.weightGoal, diet: sm.diet, allergies: sm.allergies };
+    const goal = applyDietitian(nutritionGoal({ profile, en: { need: sm.kcalTarget } }), { settings, dietitian: DIETITIAN }, profile);
+    const plan = { ...buildDay({ date: t, goal, profile, prefs: { avoid: settings.avoid || [] } }), goal };
+    const messages = [...(sm.messages || []), ...(extra.messages || [])].sort((a, b) => (a.at < b.at ? -1 : 1));
+    const unread = messages.filter((x) => x.from === 'member' && !(extra.read || []).includes(x.at)).length;
+    return { ...sm, proteinTarget: goal.protein, kcalTarget: goal.kcal, fiberTarget: goal.fiber, settings, kcalFloor: settings.kcalFloor || null, notes: extra.notes || [], messages, unread, plan, pace: settings.pace || (sm.weightGoal === 'lose' ? 'gentle' : null) };
+  }
+  async function allMembers(u) {
+    const rd = await rdDoc(u);
+    const me = await memberSelf(u);
+    const others = sampleMembers(today(), addDays).map((sm) => sampleDetail(rd, sm));
+    return [me, ...others].map((m) => ({ ...m, alerts: rdAlerts(m) }));
+  }
+  const brief = (m) => ({ id: m.id, name: m.name, age: m.age, goals: m.goals, diet: m.diet, live: !!m.live, nextVisit: m.nextVisit, lastVisit: m.lastVisit, logDays7: m.logDays7, weightKg: m.weightKg, weeklyLossKg: m.weeklyLossKg, alerts: m.alerts, unread: m.unread });
+  async function rdRoster(u) {
+    const list = await allMembers(u);
+    const t = today();
+    const sorted = [...list].sort((a, b) => b.alerts.filter((x) => x.level !== 'info').length - a.alerts.filter((x) => x.level !== 'info').length || b.alerts.length - a.alerts.length);
+    return {
+      dietitian: DIETITIAN, today: t, members: sorted.map(brief),
+      stats: { members: list.length, needAttention: list.filter((m) => m.alerts.some((a) => a.level === 'warn')).length, visitsThisWeek: list.filter((m) => m.nextVisit >= t && daysBetween(t, m.nextVisit) <= 7).length, messages: list.reduce((a, m) => a + (m.unread || 0), 0) },
+    };
+  }
+  async function rdMember(u, { id }) {
+    const list = await allMembers(u);
+    const m = list.find((x) => x.id === id);
+    if (!m) throw new Error('Member not found');
+    const recipes = RECIPES.filter((r) => fitsPersonSafe(r, m)).map((r) => ({ id: r.id, name: r.name, slot: r.slot }));
+    return { ...m, dietitian: DIETITIAN, recipes, paces: Object.values(PACES).map((x) => ({ id: x.id, label: x.label || x.id })) };
+  }
+  function fitsPersonSafe(r, m) { try { return candidates(r.slot, { diet: m.diet, allergies: m.allergies }, {}).some((x) => x.id === r.id); } catch (e) { return true; } }
+  async function rdSave(u, { id, settings }) {
+    const rd = await rdDoc(u);
+    const clean = cleanSettings(settings);
+    if (id === 'me') {
+      rd.member.settings = clean;
+      if (clean.pace) { const p = await store.get(u, 'profile'); if (p.weightGoal === 'lose') { p.deficitPace = clean.pace; await save(u, 'profile', p); } }
+    } else { rd.roster[id] = { ...(rd.roster[id] || {}), settings: clean }; }
+    await save(u, 'rd', rd);
+    return rdMember(u, { id });
+  }
+  async function rdNote(u, { id, text }) {
+    const tx = String(text || '').trim().slice(0, 2000);
+    if (!tx) throw new Error('Write a note first.');
+    const rd = await rdDoc(u);
+    const at = isoDate(now()) + 'T' + minToClock24(nowMin());
+    if (id === 'me') rd.member.notes = [...(rd.member.notes || []), { at, text: tx }];
+    else { const r = (rd.roster[id] ||= {}); r.notes = [...(r.notes || []), { at, text: tx }]; }
+    await save(u, 'rd', rd);
+    return rdMember(u, { id });
+  }
+  async function rdMessage(u, { id, text }) {
+    const tx = String(text || '').trim().slice(0, 2000);
+    if (!tx) throw new Error('Write a message first.');
+    const rd = await rdDoc(u);
+    const at = isoDate(now()) + 'T' + minToClock24(nowMin());
+    if (id === 'me') { rd.member.messages = [...(rd.member.messages || []).map((x) => ({ ...x, read: true })), { from: 'rd', at, text: tx }]; }
+    else { const r = (rd.roster[id] ||= {}); r.messages = [...(r.messages || []), { from: 'rd', at, text: tx }]; r.read = [...(r.read || []), ...((sampleMembers(today(), addDays).find((x) => x.id === id)?.messages || []).map((x) => x.at))]; }
+    await save(u, 'rd', rd);
+    return rdMember(u, { id });
+  }
+  // Member side: the member's own view of their dietitian.
+  async function myDietitian(u) {
+    const rd = await rdDoc(u);
+    const m = rd.member;
+    return { dietitian: m.dietitian, nextVisit: m.nextVisit, lastVisit: m.lastVisit, settings: m.settings || {}, messages: m.messages || [] };
+  }
+  async function memberMessage(u, { text }) {
+    const tx = String(text || '').trim().slice(0, 2000);
+    if (!tx) throw new Error('Write a message first.');
+    const rd = await rdDoc(u);
+    rd.member.messages = [...(rd.member.messages || []), { from: 'member', at: isoDate(now()) + 'T' + minToClock24(nowMin()), text: tx }];
+    await save(u, 'rd', rd);
+    return myDietitian(u);
+  }
+  const minToClock24 = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
   // ---------------- Calorie deficit ----------------
   async function deficit(u) {
@@ -1160,7 +1292,7 @@ Request: ${req}`;
     insights, sleepDetail, recoveryDetail, nutritionDay, genieChat, genieStream, genieAction, flagAnswer, getMemory, updateMemory, geniePacket,
     progress, updateGoals, train, setTrainingGoal, logSet, logWorkout, deleteWorkout, overrideSession, logFitnessTest,
     labs, readLabReport, confirmLabs, cycle, setCycle, logCycleDay, deleteCycleData,
-    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
+    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, rdRoster, rdMember, rdSave, rdNote, rdMessage, myDietitian, memberMessage, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
   };
 }
 

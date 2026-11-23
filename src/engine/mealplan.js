@@ -138,7 +138,9 @@ export function scaleRecipe(r, kcalTarget, fixedPortion) {
 }
 
 export function candidates(slot, profile, prefs = {}) {
+  const avoid = prefs.avoid || [];
   let list = RECIPES.filter((r) => r.slot === slot && fitsPerson(r, profile));
+  if (avoid.length) { const kept = list.filter((r) => !avoid.includes(r.id)); if (kept.length) list = kept; }
   const maxPrep = prefs.prepMax || 45;
   const timed = list.filter((r) => r.prep <= maxPrep && (prefs.skill !== 'beginner' || r.skill === 'easy'));
   return timed.length ? timed : list;

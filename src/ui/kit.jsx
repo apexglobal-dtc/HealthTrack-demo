@@ -26,6 +26,7 @@ const P = {
   insights: 'M5 20V12M10 20V6M15 20v-9M20 20V4',
   progress: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 7.5M18 14a6 6 0 0 1 4 7',
   plus: 'M12 5v14M5 12h14',
   bell: 'M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0',
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
@@ -119,7 +120,7 @@ export function Sheet({ onClose, children, title }) {
 }
 // No visible back buttons: screens with the tab bar are left through the tabs or a swipe from the
 // left edge. Full-screen flows (no tab bar) get a small close button in the corner instead.
-const FULLSCREEN = new Set(['logger', 'live', 'genie-voice', 'food', 'setup']);
+const FULLSCREEN = new Set(['logger', 'live', 'genie-voice', 'food', 'setup', 'rd', 'rd-member']);
 export function Back({ to = 'today' }) {
   const { go, route } = useApp();
   if (!FULLSCREEN.has(route)) return null;

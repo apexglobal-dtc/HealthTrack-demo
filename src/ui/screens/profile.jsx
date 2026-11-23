@@ -38,6 +38,12 @@ export function Profile() {
           <Item icon="target" color="var(--green)" tint="var(--tint-green)" title="Goals" sub={p.goals.join(', ')} to="goals" />
           <Item icon="brain" title="What Genie remembers" to="memory" />
           <Item icon="dumbbell" color="var(--teal)" tint="var(--tint-teal)" title="Training plan" to="train-setup" />
+          <Item icon="leaf" color="var(--green)" tint="var(--tint-green)" title="Your dietitian" sub="Dana Lee, RDN · messages and plan settings" to="my-dietitian" />
+        </div>
+      </div>
+      <div className="card">
+        <div className="list">
+          <Item icon="users" color="var(--navy)" tint="var(--tint-blue)" title="Dietitian dashboard (demo)" sub="See Health Track the way a dietitian does" to="rd" />
         </div>
       </div>
       <div className="card">

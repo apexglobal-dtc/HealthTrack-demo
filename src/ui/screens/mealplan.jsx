@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp, useLoad, Icon, Btn, Back, Loading, ErrorBox, Seg } from '../kit.jsx';
+import { DietitianCard } from './dietitian.jsx';
 
 const fmtDay = (d, today) => (d === today ? 'Today' : new Date(d + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' }));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -90,7 +91,7 @@ function DayView({ d, setDate }) {
         {g.focus.length > 0 && (
           <div style={{ marginTop: 10, background: 'var(--surface2)', borderRadius: 14, padding: '10px 12px' }}>
             <div className="xs muted" style={{ fontWeight: 700, marginBottom: 4 }}>Why today looks like this</div>
-            {g.focus.map((f, i) => <div key={i} className="xs" style={{ padding: '3px 0' }}>• {f.why}</div>)}
+            {g.focus.map((f, i) => <div key={i} className="xs" style={{ padding: '3px 0' }}>• {f.why}{f.byRd && <span className="chip violet" style={{ fontSize: 10, padding: '1px 6px', marginLeft: 6 }}>Set by your dietitian</span>}</div>)}
           </div>
         )}
       </div>
@@ -100,6 +101,8 @@ function DayView({ d, setDate }) {
       )}
 
       {d.day.meals.map((m) => <MealCard key={m.slot} m={m} d={d} isToday={isToday} />)}
+
+      <DietitianCard />
 
       <div className="card rise">
         <div className="row" style={{ gap: 8 }}><span className="genie-orb" style={{ width: 30, height: 30, margin: 0 }}><img src={(window.__HT_ASSETS__?.['genie.png']) || '/assets/genie.png'} alt="" /></span><b>Change the plan in your own words</b></div>
