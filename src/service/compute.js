@@ -41,7 +41,11 @@ export function mergeSources(perDevice, devices, overrides = {}) {
       if (!dup) workouts.push(w);
     }
   }
-  return { nights, stepsByDate, workouts, sleepDev, stepsDev };
+  // Stress stretches come from one device: a watch first (worn all day), then a band, then a ring
+  const PRIORITY_DAY = { watch: 4, band: 3, ring: 2 };
+  const dayDev = Object.keys(perDevice).filter((d) => perDevice[d].daytime?.length).sort((a, b) => (PRIORITY_DAY[kindOf(b)] || 0) - (PRIORITY_DAY[kindOf(a)] || 0))[0] || null;
+  const daytime = dayDev ? perDevice[dayDev].daytime : [];
+  return { nights, stepsByDate, workouts, sleepDev, stepsDev, daytime, dayDev };
 }
 
 export function assemble(data, wear, date) {

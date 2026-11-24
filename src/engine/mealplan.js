@@ -106,7 +106,7 @@ export function nutritionGoal({ profile, en, trainingToday, trainingCode, shortS
   const add = (tag, why) => { if (!focus.some((f) => f.tag === tag)) focus.push({ tag, why }); };
   let ppk = 1.2;
   if (goals.includes('Build strength')) { ppk = 1.6; add('protein', 'Your goal is to build strength, so protein is set to 1.6 g per kg.'); }
-  if (profile.weightGoal === 'lose') { ppk = Math.max(ppk, 1.4); add('protein', 'You are in a calorie deficit, so protein is raised to protect muscle.'); }
+  if (profile.weightGoal === 'lose') { ppk = Math.max(ppk, 1.6); add('protein', 'You are in a calorie deficit, so protein is set to 1.6 g per kg to protect muscle.'); }
   if (trainingToday) { ppk = Math.min(2, ppk + 0.2); add(trainingCode === 'push' || trainingCode === 'planned' ? 'carbs' : 'protein', `Training today, so meals carry more ${trainingCode === 'push' || trainingCode === 'planned' ? 'carbs to fuel it' : 'protein for recovery'}.`); }
   if (shortSleep) add('light', 'You slept short last night, so dinner is lighter and earlier to protect tonight\'s sleep.');
   if (goals.includes('Sleep better') && !shortSleep) add('light', 'Your goal is better sleep, so dinner stays on the lighter side.');

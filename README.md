@@ -18,6 +18,9 @@ There are two ways to run the same code:
 - Onboarding: goals, about you, data sources (14 devices or phone only), consent, rhythm, routine and food, cycle opt-in, first check-in, first status reveal.
 - Today: two pages side by side. Page 1 has the Wellness Status with band, confidence and the five trackers (based on yesterday), Your One Thing, today's four check-ins (6 AM, 12 PM, 5 PM, 9 PM) and Ask Health Genie. Page 2 (More for today) has keep doing, today's plan by category, training verdict, steps, meal idea, hydration and cycle day.
 - Nutrition: calories in and out (consumed against burned, with a breakdown), calorie deficit planner and a daily meal plan (day, week and grocery views, swap, log as eaten, eating out, plain-language changes).
+- Energy (F10): one 5 to 100 gauge from the two-process sleep model (charged by last night's sleep and morning recovery, drained by time awake, stress and workouts). A chip on the Wellness Status card, a card on Today page 2, and a full page with the day's curve and the best window for a hard session.
+- Stress (F9): two readings a day, at 9 AM and 3 PM, from still 5-minute stretches of heart rate (plus HRV when the watch sends it) against your own 30-day normal; the check-in answer when there is no wearable. Readings, 14-day bars and a 3-high-days alert on the Energy and stress page, a link from Recovery, and in Health Genie answers.
+- Weight loss v2 (F5 v2): trend weight that smooths water swings, maintenance learned from fully logged days and the weight trend (blended with the formula, at most 150 kcal a week of change), a curved goal projection shown as a date range, protein 1.6 g per kg in a deficit, and a plateau explainer. The meal plan and the dietitian view use the learned maintenance.
 - Navigation: no back buttons. Use the tab bar, or swipe in from the left edge to go back a step; full-screen flows have a close button.
 - Insights: tiles for 7 pillars, "how your status is made", sleep, recovery (HRV and resting HR against your own normal band), food and water with calorie ranges, caffeine cut-off.
 - Health Genie (centre tab, press and hold for quick actions): chat grounded in today's numbers, safety router (chest pain, breathing, fainting, self-harm, eating disorder, pregnancy) with fixed copy, proposed actions you confirm (move workout, reminder, log water), memory you can edit, voice.
@@ -95,6 +98,7 @@ Without any environment variables, the Next.js build still works: data stays in 
 ## Honest limits of this prototype
 
 - Wearable data is simulated until a provider is configured. Simulated values are labelled "Simulated" in the app.
+- The real wearable adapters do not pass daytime heart rate stretches yet, so with a real provider Stress falls back to the check-in until that mapping is added. Stress and Energy constants (other than the sleep-model time constants) are starting values to tune on beta data.
 - Payments are not real: plan changes are stored, nothing is charged. The real app bills through the App Store and Google Play (RevenueCat in the PRD).
 - The browser demo's accounts are local to that browser. Use the server build for real sign-ups.
 - Cardio percentiles use an approximation until the FRIEND tables are licensed. Optimal lab ranges are placeholders pending clinical review.

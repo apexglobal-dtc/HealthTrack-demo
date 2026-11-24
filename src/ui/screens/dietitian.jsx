@@ -142,6 +142,7 @@ function Snapshot({ d }) {
         <Mini label="Fiber, average" v={fmt(d.fiberAvg, ' g')} sub={`Target ${fmt(d.fiberTarget)} g`} />
         <Mini label="Sleep" v={d.sleepAvg != null ? `${d.sleepAvg} h` : '–'} sub="a night" />
         <Mini label="Steps" v={fmt(d.stepsAvg)} sub="a day" />
+        {d.learnedTdee && <Mini label="Maintenance, learned" v={fmt(d.learnedTdee, ' kcal')} sub="From food logs and weight trend" />}
       </div>
     </div>
   );

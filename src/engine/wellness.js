@@ -245,7 +245,9 @@ export function energyNeed(profile, today, avgSteps, mvpa7, lifeStage) {
   const safety = profile.edFlag || profile.pregnant || age < 18 || lifeStage === 'postpartum';
   const floor = profile.sex === 'male' ? 1500 : 1200;
   if (!safety && profile.weightGoal === 'lose') {
-    const plan = deficitPlan({ REE, AF, sex: profile.sex, weightKg: profile.weightKg, pace: profile.deficitPace || 'gentle' });
+    // F5 v2: once maintenance has been learned from logs and weigh-ins, it replaces the formula estimate
+    const AFeff = profile.learnedTdee ? profile.learnedTdee / REE : AF;
+    const plan = deficitPlan({ REE, AF: AFeff, sex: profile.sex, weightKg: profile.weightKg, pace: profile.deficitPace || 'gentle' });
     return { REE: round(REE), AF, g: round(plan.target / (REE * AF), 3), need: Math.max(floor, plan.target), tdee: plan.tdee };
   }
   const g = safety ? 1.0 : profile.weightGoal === 'gain' ? 1.1 : 1.0;

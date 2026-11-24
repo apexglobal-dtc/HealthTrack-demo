@@ -159,6 +159,7 @@ export function CoachAthlete() {
       <NotShared list={a.notShared} />
       <div className="pro-stats">
         <Stat label="Readiness" v={a.readiness ?? '–'} />
+        {a.live && <Stat label="Energy now" v={a.energy ?? '–'} color={a.energy != null && a.energy <= 25 ? 'var(--coral)' : undefined} />}
         <Stat label="Sleep last night" v={a.sleepH != null ? `${a.sleepH} h` : '–'} />
         <Stat label="Load (ACWR)" v={a.acwr ?? '–'} color={a.acwr > 1.5 ? 'var(--coral)' : undefined} />
         <Stat label="Check-ins" v={`${a.checkins7} of 7`} />

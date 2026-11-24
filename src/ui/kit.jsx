@@ -70,6 +70,8 @@ const P = {
   logout: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
   ruler: 'M4 16L16 4l4 4L8 20zM8 12l2 2M11 9l2 2M14 6l2 2',
   refresh: 'M20 11a8 8 0 1 0-2 6M20 5v6h-6',
+  bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+  wave: 'M2 12h4l2-6 4 12 3-9 2 3h5',
 };
 export function Icon({ name, size = 22, color = 'currentColor', stroke = 2, fill = 'none', style }) {
   return (

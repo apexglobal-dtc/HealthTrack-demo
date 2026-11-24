@@ -18,6 +18,9 @@ import { nutritionGoal, buildDay, groceryList, parseRequest, candidates, recipeB
 import { caloriesBurned, energyBalance } from '../engine/burn.js';
 import { DIETITIAN, cleanSettings, applyDietitian, rdAlerts, sampleMembers } from '../engine/rd.js';
 import { PACES, deficitPlan, deficitSafety, dayDeficit, weekSummary, projection, calorieFloor } from '../engine/deficit.js';
+import { learnedMaintenance, projectionRange, plateauCheck, trendWeights, PROTEIN_DEFICIT_G_PER_KG, WL_VERSION } from '../engine/weightloss.js';
+import { stressBaseline, stressDay, stressAlert, READINGS, STRESS_VERSION } from '../engine/stress.js';
+import { sleepPressure, energyDay, energyBand, ENERGY_VERSION } from '../engine/energy.js';
 import { computeCore, buildToday, mergeSources, todaysPlanned, nextTrainingDay, mealIdea, factsFor } from './compute.js';
 
 export const PRICING = {
@@ -171,6 +174,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     // 45 days of logs and One Thing history
     const days = {}, history = [];
     const rnd = (k) => { let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return (h % 1000) / 1000; };
+    const fnv = (k) => { let h = 2166136261; for (const ch of k) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return (h % 1000) / 1000; };
     const meals = [
       [['oatmeal-cooked', 240], ['blueberries', 80], ['greek-yogurt-plain', 120]],
       [['grain-bowl-with-chicken', 380]], [['turkey-sandwich', 220], ['apple', 150]], [['salmon-baked', 140], ['quinoa-cooked', 150], ['roasted-vegetables', 130]],
@@ -181,12 +185,17 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       const r = rnd(d);
       const day = { meals: [], water: [], caffeine: [] };
       day.checkin = { energy: 2 + Math.round(r * 3), soreness: 1 + Math.round(rnd(d + 's') * 3), stress: 2 + Math.round(rnd(d + 't') * 2), mood: 3 + Math.round(r * 2), at: '07:10' };
-      const nMeals = r < 0.2 ? 1 : r < 0.55 ? 2 : 3;
+      const rm = fnv(d + 'meals');
+      const nMeals = rm < 0.12 ? 1 : rm < 0.35 ? 2 : 3;
       const times = [7 * 60 + 40, 12 * 60 + 40, 19 * 60 + 10];
       for (let m = 0; m < nMeals; m++) {
-        const items = meals[(i * 3 + m) % meals.length].map(([foodId, grams]) => ({ foodId, grams, confirmed: true }));
+        const items = meals[(i * 3 + m) % meals.length].map(([foodId, grams]) => ({ foodId, grams: Math.round(grams * 1.08), confirmed: true }));
         const tot = mealTotals(items);
         day.meals.push({ id: uid('meal'), minute: times[m], name: ['Breakfast', 'Lunch', 'Dinner'][m], items, ...tot, confirmed: rnd(d + m) > 0.25, source: 'photo' });
+      }
+      if (nMeals === 3) {
+        const items = [{ foodId: 'greek-yogurt-plain', grams: 170, confirmed: true }, { foodId: 'granola', grams: 45, confirmed: true }];
+        day.meals.splice(2, 0, { id: uid('meal'), minute: 15 * 60 + 30, name: 'Snack', items, ...mealTotals(items), confirmed: true, source: 'photo' });
       }
       const glasses = 3 + Math.round(rnd(d + 'w') * 5);
       for (let g = 0; g < glasses; g++) day.water.push({ minute: 8 * 60 + g * 90, ml: 250 });
@@ -217,6 +226,16 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
     };
     Object.assign(days[t].meals[0], mealTotals(days[t].meals[0].items));
     await save(u, 'days', days);
+    // Weigh-ins on about 5 days in 7 over the last 45 days: a slow drift down with day-to-day water swings,
+    // so weight loss v2 has a trend line and enough data to learn maintenance.
+    const weightLog = [];
+    for (let i = 45; i >= 1; i--) {
+      const d = addDays(t, -i);
+      if (fnv(d + 'kg') < 0.3) continue;
+      const kg = 63.9 - (0.9 * (45 - i)) / 44 + (fnv(d + 'kgn') - 0.5) * 0.9;
+      weightLog.push({ date: d, kg: Math.round(kg * 10) / 10 });
+    }
+    await save(u, 'profile', { ...profile, weightKg: weightLog[weightLog.length - 1].kg, weightLog });
     await save(u, 'history', history);
     const labDate = addDays(t, -49);
     const parsed = parseLabText(SAMPLE_LAB_TEXT);
@@ -282,6 +301,7 @@ export function createService({ store, wearables, ai, now = () => new Date() }) 
       cycle: c.cyc.enabled && c.cyc.pred ? { day: c.cyc.pred.CD, phase: c.cyc.phase?.phase, label: c.cyc.phase?.label, next: c.cyc.pred.next } : null,
       fluid, waterTarget: c.wt, engineVersion: ENGINE_VERSION, evening: hour >= 17,
       entitlements: entitlements(p),
+      energy: (() => { try { const st = stressFor(data, wear, c, t); const e = energyFor(data, wear, c, t, st); return e ? { now: e.now, band: e.band, goodUntilMin: e.goodUntilMin, stressPm: st.pm.value, stressAm: st.am.value } : null; } catch (err) { return null; } })(),
     };
   }
 
@@ -684,7 +704,7 @@ Request: ${req}`;
       diet: p.diet || 'none', allergies: p.allergies || [], since: m.since, lastVisit: m.lastVisit, nextVisit: m.nextVisit, live: true,
       days, logDays7: logged.length, kcalAvg: avg(logged.map((d) => d.kcal)), proteinAvg: avg(logged.map((d) => d.protein)), fiberAvg: avg(logged.map((d) => d.fiber)), burnAvg: avg(days.map((d) => d.burned)),
       kcalTarget: goal.kcal, proteinTarget: goal.protein, fiberTarget: goal.fiber, sleepAvg: days.some((d) => d.sleep) ? round(mean(days.filter((d) => d.sleep).map((d) => d.sleep)), 1) : null, stepsAvg: avg(days.filter((d) => d.steps != null).map((d) => d.steps)),
-      weightTrend: wl, weeklyLossKg: wl.length > 1 ? round(wl[wl.length - 2].kg - wl[wl.length - 1].kg, 1) : null, labs: labList(data),
+      weightTrend: wl, weeklyLossKg: wl.length > 1 ? round(wl[wl.length - 2].kg - wl[wl.length - 1].kg, 1) : null, labs: labList(data), learnedTdee: p.learnedTdee || null,
       settings: m.settings || {}, kcalFloor: m.settings?.kcalFloor || null, notes: m.notes || [], messages: m.messages || [], unread, plan, pace: p.deficitPace || null,
     };
   }
@@ -711,7 +731,7 @@ Request: ${req}`;
   function limitShared(m, share = {}) {
     const x = { ...m, share, notShared: Object.keys(SHARE).filter((k) => !share[k]) };
     if (!share.food) { x.days = x.days.map((d) => ({ ...d, kcal: null, protein: null, fiber: null })); x.kcalAvg = x.proteinAvg = x.fiberAvg = null; x.logDays7 = null; }
-    if (!share.body) { x.weightKg = null; x.weightTrend = []; x.weeklyLossKg = null; x.targetKg = null; }
+    if (!share.body) { x.weightKg = null; x.weightTrend = []; x.weeklyLossKg = null; x.targetKg = null; x.learnedTdee = null; }
     if (!share.activity) { x.days = x.days.map((d) => ({ ...d, burned: null, sleep: null, steps: null })); x.burnAvg = x.sleepAvg = x.stepsAvg = null; }
     if (!share.labs) x.labs = [];
     return x;
@@ -855,7 +875,8 @@ Request: ${req}`;
     }
     let checkins7 = 0;
     for (let i = 0; i < 7; i++) if (data.days[addDays(t, -i)]?.checkin) checkins7++;
-    return { id: 'me', name: p.name || 'You', live: true, position: 'Member', age: ageFrom(p.dob, t), readiness: sh.activity ? c.ready : null, sleepH: sh.activity && c.night?.tstH != null ? round(c.night.tstH, 1) : null,
+    const en = sh.activity ? (() => { try { return energyFor(data, wear, c, t, stressFor(data, wear, c, t)); } catch (e) { return null; } })() : null;
+    return { id: 'me', name: p.name || 'You', live: true, position: 'Member', age: ageFrom(p.dob, t), readiness: sh.activity ? c.ready : null, energy: en ? en.now : null, energyGoodUntil: en?.goodUntilMin ?? null, sleepH: sh.activity && c.night?.tstH != null ? round(c.night.tstH, 1) : null,
       acwr: sh.activity ? c.lb.acwr : null, checkins7, availability: data.days[t]?.checkin?.flags?.includes('unwell') ? 'modify' : 'available', readiness7, load7, share: sh, notShared: Object.keys(SHARE).filter((k) => !sh[k]) };
   }
   async function athletes(u) {
@@ -984,7 +1005,86 @@ Request: ${req}`;
   }
   const minToClock24 = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
+  // ---------------- Stress (F9) and Energy (F10) ----------------
+  function stressFor(data, wear, c, date) {
+    const isToday = date === today();
+    const base = stressBaseline({ daytime: wear.daytime || [], nights: c.asm.nights, date });
+    const checkin = data.days[date]?.checkin || null;
+    return stressDay({ date, daytime: wear.daytime || [], base, hrMax: c.hm.value, checkin, isToday, nowMin: nowMin() });
+  }
+  function energyFor(data, wear, c, date, stress) {
+    const p = data.profile;
+    const night = c.night;
+    const wakeMin = night?.bedEndMin ?? p.usualWakeMin ?? 7 * 60;
+    const bedMin = c.bed;
+    const nights = [...c.asm.nights];
+    if (!night && c.checkin?.sleepHours) nights.push({ date, tstH: c.checkin.sleepHours, bedEndMin: wakeMin });
+    const sp = sleepPressure({ nights, date, wakeMin, bedMin });
+    const isToday = date === today();
+    const workouts = c.asm.workouts.filter((w) => w.date === date);
+    const e = energyDay({ S_wake: sp.S_wake, recovery: c.recovery?.score, wakeMin, bedMin, nowMin: isToday ? nowMin() : bedMin + 1440, stress, workouts });
+    if (!e) return null;
+    return { ...e, wakeMin, bedMin, tstH: sp.tstH, source: c.hasWearable ? 'wearable' : 'phone', confidence: c.hasWearable && night?.hrv ? 'High' : 'Medium' };
+  }
+  async function energyStress(u) {
+    const { data, wear } = await ctx(u);
+    const t = today();
+    const c = computeCore(data, wear, t);
+    const stress = stressFor(data, wear, c, t);
+    const energy = energyFor(data, wear, c, t, stress);
+    const series = [];
+    for (let i = 13; i >= 1; i--) {
+      const d = addDays(t, -i);
+      const cd = computeCore(data, wear, d);
+      const sd = stressFor(data, wear, cd, d);
+      series.push({ date: d, am: sd.am.value, pm: sd.pm.value, day: sd.day });
+    }
+    series.push({ date: t, am: stress.am.value, pm: stress.pm.value, day: stress.day });
+    const base = stressBaseline({ daytime: wear.daytime || [], nights: c.asm.nights, date: t });
+    const avg7 = mean(series.slice(-8, -1).map((x) => x.day).filter((v) => v != null));
+    return {
+      date: t, nowMin: nowMin(), stress, energy, series, alert: stressAlert(series),
+      stressAvg7: Number.isFinite(avg7) ? Math.round(avg7) : null,
+      baseline: { days: base.days, active: base.active, rhr: base.rhr, hrvReadings: base.hrvReadings },
+      device: wear.dayDev ? deviceById(wear.dayDev)?.name : null, hasWearable: c.hasWearable,
+      readings: READINGS, versions: { stress: STRESS_VERSION, energy: ENERGY_VERSION },
+    };
+  }
+
   // ---------------- Calorie deficit ----------------
+  // Weight loss v2 (F5 v2): learned maintenance from logs + weigh-ins, trend weight, curved projection, plateau
+  function weightLossV2({ data, wear, p, t, plan, paceOptions, enabled, usual, kcalOf }) {
+    const days = [];
+    for (let i = 42; i >= 1; i--) {
+      const d = addDays(t, -i);
+      const dm = data.days[d]?.meals || [];
+      const kcal = round(kcalOf(dm, 'kcal'));
+      days.push({ date: d, kcal, complete: dm.filter((m) => m.name !== 'Snack').length >= usual }); // all usual meals: learning needs fully logged days
+    }
+    const log = p.weightLog || [];
+    const lm = learnedMaintenance({ formulaTdee: plan.tdee, days, log, today: t, dietStart: enabled ? p.deficitStartedAt : null });
+    const weightNow = lm.trendNow ?? p.weightKg;
+    const AF = plan.AF;
+    const startWeek = enabled && p.deficitStartedAt ? Math.max(1, Math.floor(daysBetween(p.deficitStartedAt, t) / 7) + 1) : 1;
+    // targets from the learned maintenance, same pace rules and floor
+    const paces = paceOptions.map((x) => {
+      const target = Math.max(calorieFloor(p.sex), round(Math.max(lm.tdee * (1 - x.pct), lm.tdee - (0.01 * (p.weightKg || 70) * 7700) / 7)));
+      const range = p.targetWeightKg ? projectionRange({ weightKg: weightNow, targetKg: p.targetWeightKg, intake: target, tdee: lm.tdee, AF, startWeek, today: t }) : null;
+      const first = projectionRange({ weightKg: weightNow, targetKg: weightNow - 50, intake: target, tdee: lm.tdee, AF, startWeek, today: t });
+      return { id: x.id, target, daily: round(lm.tdee - target), firstMonthKg: first?.firstMonthKg ?? null, range };
+    });
+    const pace = PACES[p.deficitPace] ? p.deficitPace : 'gentle';
+    const mine = paces.find((x) => x.id === pace);
+    const trend = lm.trend.filter((x) => x.date >= addDays(t, -42));
+    const plateau = plateauCheck({ trend: lm.trend, days, today: t, losing: p.weightGoal === 'lose' });
+    const change28 = (() => { const a = lm.trend.find((x) => x.date >= addDays(t, -28)); return a && lm.trendNow != null ? round(lm.trendNow - a.trend, 1) : null; })();
+    return {
+      version: WL_VERSION, learned: lm.learned, maintenance: lm.tdee, formulaTdee: lm.formulaTdee, observed: lm.observed, missing: lm.missing, k: lm.k,
+      trend, trendNow: lm.trendNow, change28, paces, mine, plateau,
+      proteinGPerKg: p.weightGoal === 'lose' ? PROTEIN_DEFICIT_G_PER_KG : null,
+      proteinG: p.weightGoal === 'lose' && p.weightKg ? Math.round(PROTEIN_DEFICIT_G_PER_KG * p.weightKg) : null,
+    };
+  }
   async function deficit(u) {
     const { data, wear } = await ctx(u);
     const t = today();
@@ -1003,23 +1103,31 @@ Request: ${req}`;
     for (let i = 7; i >= 1; i--) {
       const d = addDays(t, -i);
       const dm = data.days[d]?.meals || [];
+      const mainMeals = dm.filter((m) => m.name !== 'Snack').length; // snacks don't count toward "3 of 3 meals"
       const cd = computeCore(data, wear, d);
       const tdee = round(cd.en.REE * cd.en.AF);
       const kcal = round(kcalOf(dm, 'kcal'));
-      const complete = dm.length >= usual || (dm.length >= 2 && kcal >= 0.6 * tdee); // all usual meals, or most of the day's food clearly logged
+      const complete = mainMeals >= usual || (dm.length >= 2 && kcal >= 0.6 * tdee); // all usual meals, or most of the day's food clearly logged
       const burned = burnFor(data, cd, d).total;
-      days7.push({ date: d, tdee, burned, kcal, meals: dm.length, complete, deficit: complete ? tdee - kcal : null });
+      days7.push({ date: d, tdee, burned, kcal, meals: mainMeals, complete, deficit: complete ? tdee - kcal : null });
     }
     const week = weekSummary(days7);
     const log = (p.weightLog?.length ? p.weightLog : p.weightKg ? [{ date: p.createdAt || t, kg: p.weightKg }] : []).slice(-30);
     const enabled = p.weightGoal === 'lose' && !safety;
+    const v2 = weightLossV2({ data, wear, p, t, plan, paceOptions, enabled, usual, kcalOf });
+    // Learned maintenance drives the target once there is enough data (F5 v2); the meal plan reads it too.
+    const eff = v2.learned && !safety ? { tdee: v2.maintenance, target: v2.mine.target, daily: v2.mine.daily, learned: true } : { tdee: plan.tdee, target: plan.target, daily: plan.daily, learned: false };
+    const want = v2.learned ? v2.maintenance : null;
+    if ((p.learnedTdee ?? null) !== want) { const prof = await store.get(u, 'profile'); prof.learnedTdee = want; await save(u, 'profile', prof); }
     return {
       hidden: false, paused: !!safety, pausedReason: safety?.reason || null, enabled, pace, paces: paceOptions, plan, floor: calorieFloor(p.sex),
       burned: burnFor(data, c, t),
-      today: { ...eaten, deficit: meals.length ? dayDeficit({ tdee: plan.tdee, kcalLow: eaten.low, kcalHigh: eaten.high }) : null, left: round(plan.target - eaten.kcal), complete: meals.length >= usual },
+      eff,
+      today: { ...eaten, deficit: meals.length ? dayDeficit({ tdee: eff.tdee, kcalLow: eaten.low, kcalHigh: eaten.high }) : null, left: round(eff.target - eaten.kcal), complete: meals.length >= usual },
       days7, week, weightKg: p.weightKg || null, targetKg: p.targetWeightKg || null, units: p.units || 'metric', weightLog: log,
       projection: enabled ? projection({ weightKg: p.weightKg, targetKg: p.targetWeightKg, daily: plan.daily, today: t }) : null,
       startedAt: p.deficitStartedAt || null,
+      v2,
     };
   }
   async function setDeficitGoal(u, { enabled, pace, targetKg, weightKg }) {
@@ -1081,6 +1189,7 @@ Request: ${req}`;
       allergies: (data.profile.allergies || []).join(', ') || null, goals: data.memory.goals.map((g) => g.text), constraints: data.memory.constraints.map((g) => g.text), tone: data.memory.preferences?.tone,
       cycle: consentCycle && c.cyc.pred ? { day: c.cyc.pred.CD, phase: c.cyc.phase?.phase, label: c.cyc.phase?.label, next: c.cyc.pred.next, normalNote: c.cyc.phase?.phase === 'Luteal' ? 'A slightly higher resting heart rate is normal for this phase.' : '' } : null,
       foundation: labs.score != null ? { score: labs.score, date: labs.testDate, worthALook: labs.rows.filter((r) => r.status === 'Worth a look').map((r) => r.name).join(', ') || null } : null,
+      ...(() => { try { const st = stressFor(data, wear, c, t); const e = energyFor(data, wear, c, t, st); return { energyNow: e?.now ?? null, energyBand: e?.band?.name ?? null, energyGoodUntil: e?.goodUntilMin != null ? minToClock(e.goodUntilMin) : null, stressAm: st.am.value, stressPm: st.pm.value, stressDay: st.day }; } catch (err) { return {}; } })(),
     };
   }
 
@@ -1508,7 +1617,7 @@ Request: ${req}`;
     insights, sleepDetail, recoveryDetail, nutritionDay, genieChat, genieStream, genieAction, flagAnswer, getMemory, updateMemory, geniePacket,
     progress, updateGoals, train, setTrainingGoal, logSet, logWorkout, deleteWorkout, overrideSession, logFitnessTest,
     labs, readLabReport, confirmLabs, cycle, setCycle, logCycleDay, deleteCycleData,
-    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, rdRoster, rdMember, rdSave, rdNote, rdMessage, myDietitian, memberMessage, careTeam, careLookup, careConnect, careStop, careDecline, coachRoster, coachAthlete, coachSet, coachNote, coachAnnounce, employerDash, employerAnnounce, employerChallenge, providerRoster, providerPatient, providerAct, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
+    profileHub, saveProfile, updateSetup, mealPlan, mealPlanAction, adjustMealPlan, rdRoster, rdMember, rdSave, rdNote, rdMessage, myDietitian, memberMessage, careTeam, careLookup, careConnect, careStop, careDecline, coachRoster, coachAthlete, coachSet, coachNote, coachAnnounce, employerDash, employerAnnounce, employerChallenge, providerRoster, providerPatient, providerAct, energyStress, deficit, setDeficitGoal, logWeight, devices, devicesCatalog, connectDevice, disconnectDevice, exportData, deleteAccount, subscription, phoneEstimate, baseline,
   };
 }
 

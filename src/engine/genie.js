@@ -81,7 +81,16 @@ export function stubReply(packet, userText) {
         action: { type: 'move_workout', title: `Move ${p.plannedSession || 'session'} to ${p.nextTrainingDay}`, detail: 'Today becomes a 20 min zone 2 walk', params: { to: p.nextTrainingDay } },
       });
     }
-    return say(`Readiness is ${p.readiness}, so today is a${v === 'As planned' ? 'n as-planned' : ' ' + v.toLowerCase()} day. ${p.sessionNote}`);
+    if (p.energyNow != null) chips.push({ label: `Energy ${p.energyNow}` });
+    const when = p.energyNow == null ? '' : p.energyGoodUntil ? ` Your energy stays above 50 until about ${p.energyGoodUntil}, so the best time for it is before then.` : ` Your energy is ${p.energyNow} now, so keep it easy and earlier rather than later.`;
+    return say(`Readiness is ${p.readiness}, so today is a${v === 'As planned' ? 'n as-planned' : ' ' + v.toLowerCase()} day. ${p.sessionNote}${when}`);
+  }
+  if (/(stress|draining|drained|tired|energy|exhausted)/.test(t) && (p.stressDay != null || p.energyNow != null)) {
+    if (p.energyNow != null) chips.push({ label: `Energy ${p.energyNow}` });
+    if (p.stressDay != null) chips.push({ label: `Stress ${p.stressDay}` });
+    const st = p.stressAm != null || p.stressPm != null ? `Your stress readings today are ${p.stressAm ?? '--'} at 9 AM and ${p.stressPm ?? '--'} at 3 PM (0 to 100, against your own normal). ` : '';
+    const en = p.energyNow != null ? `Energy is ${p.energyNow} (${String(p.energyBand).toLowerCase()}): last night's sleep charged it, and time awake${p.stressPm > 50 || p.stressAm > 50 ? ', the stressful stretches' : ''} and any hard activity drained it. ` : '';
+    return say(`${st}${en}A 10-minute walk or a few slow breaths after work helps, and getting to bed by ${p.windDown} recharges it for tomorrow.`);
   }
   if (/(eat|dinner|lunch|food|meal|protein|hungry)/.test(t)) {
     chips.push({ label: `${p.proteinSoFar} of ${p.proteinTarget} g protein` });

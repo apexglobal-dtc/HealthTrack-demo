@@ -5,6 +5,7 @@ import { Onboarding, SetupEdit } from './screens/onboarding.jsx';
 import { MealPlan } from './screens/mealplan.jsx';
 import { Today, CheckinSheet, Baseline } from './screens/today.jsx';
 import { Insights, StatusExplained, SleepDetail, RecoveryDetail, Nutrition, Deficit } from './screens/insights.jsx';
+import { EnergyStress } from './screens/energy.jsx';
 import { LogSheet, FoodPhoto, WaterCaffeine, VoiceLog } from './screens/log.jsx';
 import { Genie, Memory, VoiceGenie } from './screens/genie.jsx';
 import { Progress, Goals, WeeklyReview } from './screens/progress.jsx';
@@ -17,7 +18,7 @@ import { Profile, Devices, Privacy, DeleteAccount, Plans, CancelOffer, About } f
 
 const ROUTES = {
   today: Today, insights: Insights, genie: Genie, progress: Progress, profile: Profile,
-  status: StatusExplained, deficit: Deficit, mealplan: MealPlan, sleep: SleepDetail, recovery: RecoveryDetail, nutrition: Nutrition,
+  status: StatusExplained, energy: EnergyStress, deficit: Deficit, mealplan: MealPlan, sleep: SleepDetail, recovery: RecoveryDetail, nutrition: Nutrition,
   food: FoodPhoto, water: WaterCaffeine, voice: VoiceLog, baseline: Baseline,
   memory: Memory, 'genie-voice': VoiceGenie, goals: Goals, review: WeeklyReview,
   train: Train, logger: SetLogger, live: LiveActivity, history: WorkoutHistory, 'workout-new': ManualWorkout,
@@ -28,7 +29,7 @@ const ROUTES = {
   'pro-signin': ProSignIn, 'pro-coach': CoachDashboard, 'pro-athlete': CoachAthlete, 'pro-employer': EmployerDashboard, 'pro-provider': ProviderDashboard, 'pro-patient': ProviderPatient,
   'care-team': CareTeam, 'care-join': CareJoin,
 };
-const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', deficit: 'insights', mealplan: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
+const TAB_OF = { today: 'today', baseline: 'today', insights: 'insights', status: 'insights', energy: 'insights', sleep: 'insights', recovery: 'insights', nutrition: 'insights', deficit: 'insights', mealplan: 'insights', food: 'insights', water: 'insights', voice: 'insights', genie: 'genie', memory: 'genie', 'genie-voice': 'genie', progress: 'progress', goals: 'progress', review: 'progress', train: 'progress', logger: 'progress', live: 'progress', history: 'progress', 'workout-new': 'progress', fitness: 'progress', load: 'progress', 'train-setup': 'progress' };
 const TAB_ROOTS = new Set(['today', 'insights', 'genie', 'progress', 'profile']);
 const NO_NAV = new Set(['logger', 'live', 'genie-voice', 'food', 'setup', ...Object.keys(PRO_ROUTE_ROLE)]);
 

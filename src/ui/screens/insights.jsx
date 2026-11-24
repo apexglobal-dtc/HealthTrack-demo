@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp, useLoad, Icon, Btn, Back, Loading, ErrorBox, Locked, SimBadge, PILLAR, bandColor, confColor, fmtH, clock, dayName } from '../kit.jsx';
 import { MealPlanCard } from './mealplan.jsx';
+import { ENERGY_COLOR, StressBars, WeightTrend, ProjectionChart } from './energy.jsx';
 import { Ring, CountUp, BandSpark, Spark, SleepWindows, ContributionStack, CutoffTimeline, CapsuleBars, SegRing } from '../viz.jsx';
 
 export function Insights() {
@@ -48,12 +49,31 @@ export function Insights() {
           );
         })}
       </div>
+      <EnergyStressCard />
       <div className="card">
         <h3>Last 14 days</h3>
         <BandSpark points={d.statusSeries} band={[65, 79]} color="var(--violet)" />
         <p className="xs muted">The shaded band is Steady (65 to 79).</p>
       </div>
     </div>
+  );
+}
+
+function EnergyStressCard() {
+  const { go } = useApp();
+  const { data: d } = useLoad('energyStress');
+  if (!d) return null;
+  const e = d.energy, s = d.stress;
+  return (
+    <button className="card tap rise" style={{ textAlign: 'left' }} onClick={() => go('energy')}>
+      <div className="row between"><span className="row" style={{ gap: 6 }}><Icon name="bolt" size={18} color="var(--amber)" /><b>Energy and stress</b></span><Icon name="chev" /></div>
+      <div className="row" style={{ gap: 16, marginTop: 6 }}>
+        {e && <div><div className="xs muted">Energy now</div><b className="num" style={{ fontSize: 26, color: ENERGY_COLOR[e.band.color] }}>{e.now}</b> <span className="xs" style={{ color: ENERGY_COLOR[e.band.color], fontWeight: 700 }}>{e.band.name}</span></div>}
+        <div><div className="xs muted">Stress today</div><b className="num" style={{ fontSize: 26 }}>{s.day ?? '--'}</b> {s.band && <span className="xs" style={{ color: ENERGY_COLOR[s.band.color], fontWeight: 700 }}>{s.band.name}</span>}</div>
+      </div>
+      <StressBars series={d.series} height={70} />
+      <div className="xs muted">Stress at 9 AM and 3 PM, last 14 days</div>
+    </button>
   );
 }
 
@@ -150,6 +170,7 @@ export function SleepDetail() {
 }
 
 export function RecoveryDetail() {
+  const { go } = useApp();
   const { data: d } = useLoad('recoveryDetail');
   if (!d) return <Loading />;
   const s = d.score;
@@ -179,6 +200,11 @@ export function RecoveryDetail() {
           </div>
         </>
       )}
+      <button className="card flat row" style={{ textAlign: 'left' }} onClick={() => go('energy')}>
+        <span className="ico" style={{ background: 'var(--tint-amber)', color: 'var(--amber)' }}><Icon name="wave" /></span>
+        <span style={{ flex: 1 }}><b className="small">Stress during the day</b><div className="xs muted">Two readings, 9 AM and 3 PM, against the same normal as your recovery</div></span>
+        <Icon name="chev" />
+      </button>
       {d.cycle && <div className="notice info"><Icon name="calendar" /><div>{d.cycle}</div></div>}
       <p className="xs muted">The shaded band is your normal range (30-day median ± spread). Inside it means normal for you, even if the number looks low.</p>
     </div>
@@ -356,7 +382,13 @@ export function Deficit() {
     setBusy(false);
   }
   const p = d.plan;
-  const eatenPct = Math.min(100, (d.today.kcal / Math.max(1, p.target)) * 100);
+  const v2 = d.v2;
+  const ef = d.eff;
+  const v2opt = v2.paces.find((x) => x.id === sel) || v2.paces[0];
+  const shown = v2.learned ? { ...opt, target: v2opt.target, daily: v2opt.daily } : opt;
+  const kgFmt = (kg) => (u === 'imperial' ? `${Math.round(kg * 2.2046 * 10) / 10} lb` : `${kg} kg`);
+  const mdate = (iso) => new Date(iso + 'T12:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const eatenPct = Math.min(100, (d.today.kcal / Math.max(1, ef.target)) * 100);
   return (
     <div className="stack">
       <Back to="nutrition" label="Food" />
@@ -368,8 +400,8 @@ export function Deficit() {
         <div className="card rise">
           <div className="xs muted">Today's target</div>
           <div className="row between" style={{ alignItems: 'baseline' }}>
-            <div className="num" style={{ fontSize: 34, fontWeight: 800 }}>{p.target.toLocaleString()}<span className="small muted"> kcal</span></div>
-            <span className="chip coral">−{p.daily} kcal a day</span>
+            <div className="num" style={{ fontSize: 34, fontWeight: 800 }}>{ef.target.toLocaleString()}<span className="small muted"> kcal</span></div>
+            <span className="chip coral">−{ef.daily} kcal a day</span>
           </div>
           <div className="progressbar" style={{ marginTop: 8, height: 10 }}><i style={{ width: `${eatenPct}%`, background: d.today.left < 0 ? 'var(--coral)' : 'var(--amber)' }} /></div>
           <div className="row between xs muted" style={{ marginTop: 6 }}>
@@ -379,7 +411,7 @@ export function Deficit() {
           {d.today.deficit && (
             <div className="small" style={{ marginTop: 10, background: 'var(--surface2)', borderRadius: 12, padding: '10px 12px' }}>
               {d.today.complete
-                ? <>Today's deficit so far: <b>{d.today.deficit.low === d.today.deficit.high ? d.today.deficit.mid : `${d.today.deficit.low} to ${d.today.deficit.high}`} kcal</b> below your maintenance of {p.tdee.toLocaleString()}.</>
+                ? <>Today's deficit so far: <b>{d.today.deficit.low === d.today.deficit.high ? d.today.deficit.mid : `${d.today.deficit.low} to ${d.today.deficit.high}`} kcal</b> below your maintenance of {ef.tdee.toLocaleString()}.</>
                 : <>Log all your meals today and we will show today's real deficit. Until then it would look bigger than it is.</>}
             </div>
           )}
@@ -387,17 +419,39 @@ export function Deficit() {
         </div>
       )}
 
+      {v2.plateau?.plateau && (
+        <div className="notice"><Icon name="info" /><div><b>This is a plateau, and it is normal.</b> Your trend moved {kgFmt(v2.plateau.movedKg)} in 3 weeks while you logged {v2.plateau.loggedPct}% of days. As weight falls, your body needs less, so we have re-learned your maintenance instead of cutting calories further. Your dietitian can help you choose the next step.</div></div>
+      )}
+
+      <div className="card rise" style={{ animationDelay: '.03s' }}>
+        <div className="row between"><h3 style={{ margin: 0 }}>Your maintenance</h3><span className={`chip ${v2.learned ? 'green' : 'teal'}`} style={{ fontSize: 11, padding: '2px 8px' }}>{v2.learned ? 'Learned from your data' : 'Formula estimate'}</span></div>
+        <div className="num" style={{ fontSize: 34, fontWeight: 800, marginTop: 6 }}>{v2.maintenance.toLocaleString()}<span className="small muted"> kcal a day</span></div>
+        {v2.learned ? (
+          <>
+            <p className="small" style={{ margin: '4px 0 0' }}>Learned from {v2.observed.completeDays} fully logged days and your weight trend over {v2.observed.days} days. The formula alone said {v2.formulaTdee.toLocaleString()} kcal.</p>
+            <div className="kv small" style={{ marginTop: 8 }}><span>Average eaten on full days</span><b className="num">{v2.observed.intake.toLocaleString()} kcal</b></div>
+            <div className="kv small"><span>Trend weight change</span><b className="num">{v2.observed.lossKg > 0 ? '−' : '+'}{kgFmt(Math.abs(v2.observed.lossKg))}</b></div>
+            <div className="kv small"><span>Trust in your data vs the formula</span><b className="num">{Math.round(v2.k * 100)}%</b></div>
+            <p className="xs muted" style={{ marginBottom: 0 }}>What you ate plus the energy that came out of your body (the trend change × {v2.observed.rho.toLocaleString()} kcal per kg) equals what you burned. It updates weekly and never moves more than 150 kcal in a week.</p>
+          </>
+        ) : (
+          <p className="small muted" style={{ margin: '4px 0 0' }}>Learning your real number: {v2.missing.completeDays} of 10 fully logged days and {v2.missing.weighIns14} of 6 weigh-ins in the last 2 weeks. Until then we use the formula below.</p>
+        )}
+      </div>
+
       <div className="card rise" style={{ animationDelay: '.05s' }}>
         <h3>How your numbers are worked out</h3>
         <div className="kv"><span>Resting burn (BMR)<div className="xs faint">Mifflin-St Jeor: weight, height, age, sex</div></span><b className="num">{p.bmr.toLocaleString()} kcal</b></div>
         <div className="kv"><span>Activity factor<div className="xs faint">From your last 14 days of steps and exercise</div></span><b className="num">× {p.AF}</b></div>
-        <div className="kv"><span>Maintenance (TDEE)<div className="xs faint">What keeps your weight steady</div></span><b className="num">{p.tdee.toLocaleString()} kcal</b></div>
-        {!d.paused && <div className="kv"><span>Deficit ({Math.round(opt.pct * 100)}% pace)<div className="xs faint">Never more than 20% of maintenance</div></span><b className="num">−{opt.daily} kcal</b></div>}
-        {!d.paused && <div className="kv"><span>Daily target<div className="xs faint">Never below {d.floor.toLocaleString()} kcal</div></span><b className="num">{opt.target.toLocaleString()} kcal</b></div>}
-        {!d.paused && <div className="kv"><span>Expected change</span><b className="num">about {u === 'imperial' ? `${Math.round(opt.weeklyKg * 2.2046 * 10) / 10} lb` : `${opt.weeklyKg} kg`} a week</b></div>}
+        <div className="kv"><span>Formula maintenance<div className="xs faint">Resting burn × activity factor</div></span><b className="num">{p.tdee.toLocaleString()} kcal</b></div>
+        {v2.learned && <div className="kv"><span>Learned maintenance<div className="xs faint">Used for your target</div></span><b className="num">{v2.maintenance.toLocaleString()} kcal</b></div>}
+        {!d.paused && <div className="kv"><span>Deficit ({Math.round(opt.pct * 100)}% pace)<div className="xs faint">Never more than 20% of maintenance</div></span><b className="num">−{shown.daily} kcal</b></div>}
+        {!d.paused && <div className="kv"><span>Daily target<div className="xs faint">Never below {d.floor.toLocaleString()} kcal</div></span><b className="num">{shown.target.toLocaleString()} kcal</b></div>}
+        {!d.paused && v2opt.firstMonthKg != null && <div className="kv"><span>Expected change<div className="xs faint">Faster at first, then slower</div></span><b className="num">about {kgFmt(v2opt.firstMonthKg)} in 4 weeks</b></div>}
+        {v2.proteinG && <div className="kv"><span>Protein<div className="xs faint">1.6 g per kg protects muscle in a deficit</div></span><b className="num">{v2.proteinG} g a day</b></div>}
         {opt.limitedBy === 'floor' && <p className="xs" style={{ color: 'var(--amber)' }}>Your target is held at the {d.floor.toLocaleString()} kcal minimum, so the deficit is smaller than the pace suggests.</p>}
         {opt.limitedBy === 'pace' && <p className="xs" style={{ color: 'var(--amber)' }}>Capped so you lose no more than 1% of your body weight a week.</p>}
-        <p className="xs muted" style={{ marginBottom: 0 }}>About 7,700 kcal of deficit equals roughly 1 kg ({u === 'imperial' ? 'about 3,500 kcal per lb' : '2.2 lb'}). Treat it as a guide: loss usually slows over time, and water can move your weight 1 to 2 kg from day to day.</p>
+        <p className="xs muted" style={{ marginBottom: 0 }}>Early weight loss holds less energy per kg (about 4,900 kcal) than later loss (about 6,600 kcal), and maintenance falls as you get lighter, so loss is quicker at the start and slows over time. Water can move the scale 1 to 2 kg from day to day, which is why we follow the trend.</p>
       </div>
 
       {!d.paused && (
@@ -409,8 +463,8 @@ export function Deficit() {
           <div role="radiogroup" aria-label="Pace" className="col" style={{ gap: 8, marginTop: 6 }}>
             {d.paces.map((x) => (
               <button key={x.id} role="radio" aria-checked={x.id === sel} className={`pill-opt ${x.id === sel ? 'on' : ''}`} onClick={() => setPace(x.id)}>
-                <div className="row between"><b>{x.label} · {Math.round(x.pct * 100)}%</b><span className="num small">{x.target.toLocaleString()} kcal a day</span></div>
-                <div className="xs muted">{x.note}. About {u === 'imperial' ? `${Math.round(x.weeklyKg * 2.2046 * 10) / 10} lb` : `${x.weeklyKg} kg`} a week.</div>
+                <div className="row between"><b>{x.label} · {Math.round(x.pct * 100)}%</b><span className="num small">{(v2.learned ? v2.paces.find((y) => y.id === x.id).target : x.target).toLocaleString()} kcal a day</span></div>
+                <div className="xs muted">{x.note}. About {kgFmt(v2.paces.find((y) => y.id === x.id).firstMonthKg ?? x.weeklyKg * 4)} in the first 4 weeks.</div>
               </button>
             ))}
           </div>
@@ -421,11 +475,14 @@ export function Deficit() {
         </div>
       )}
 
-      {d.enabled && d.projection && (
-        <div className="card tint rise">
-          <div className="xs muted">At this pace</div>
-          <b>{wFmt(d.targetKg, u)} in about {d.projection.weeks} weeks</b>
-          <div className="small muted">Around {new Date(d.projection.date + 'T12:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}, if you hit your target most days. Most people take longer, and that is fine.</div>
+      {d.targetKg && v2opt.range && (
+        <div className="card rise">
+          <div className="xs muted">{d.enabled ? 'At your pace' : `If you start at the ${opt.label.toLowerCase()} pace`}</div>
+          {v2opt.range.reachable
+            ? <b>{wFmt(d.targetKg, u)} between {mdate(v2opt.range.dateFast)} and {v2opt.range.weeksSlow ? mdate(v2opt.range.dateSlow) : 'later'}</b>
+            : <b>Your weight levels out near {wFmt(v2opt.range.flatAtKg, u)} at this intake</b>}
+          <ProjectionChart range={v2opt.range} targetKg={d.targetKg} units={u} />
+          <div className="xs muted">Solid line: on target every day. Dashed: hitting 80% of the planned deficit. The curve bends because your maintenance falls as you lose weight. Most people land somewhere in the shaded range.</div>
         </div>
       )}
 
@@ -448,7 +505,13 @@ export function Deficit() {
           <input className="input" inputMode="decimal" aria-label={`Today's weight in ${unit}`} placeholder={`Today's weight (${unit})`} value={newW} onChange={(e) => setNewW(e.target.value)} />
           <Btn sm disabled={!newW} onClick={async () => { try { await act('logWeight', { kg: wIn(newW, u) }, 'Weight saved'); setNewW(''); } catch (e) { toast(e.message); } }}>Save</Btn>
         </div>
-        {d.weightLog.length > 1 && <Spark values={d.weightLog.map((x) => x.kg)} w={300} h={50} />}
+        {v2.trend.length > 1 ? (
+          <>
+            <div className="row between small" style={{ marginTop: 8 }}><span>Trend weight <b className="num">{wFmt(v2.trendNow, u)}</b></span>{v2.change28 != null && <span className="muted">{v2.change28 <= 0 ? '−' : '+'}{kgFmt(Math.abs(v2.change28))} in 4 weeks</span>}</div>
+            <WeightTrend points={v2.trend} units={u} />
+            <div className="xs muted">Dots are your weigh-ins; the line is your trend, which smooths out water swings.</div>
+          </>
+        ) : d.weightLog.length > 1 && <Spark values={d.weightLog.map((x) => x.kg)} w={300} h={50} />}
         <div className="list" style={{ marginTop: 6 }}>
           {d.weightLog.slice(-5).reverse().map((x) => <div key={x.date} className="kv"><span>{shortDate(x.date)}</span><b className="num">{wFmt(x.kg, u)}</b></div>)}
         </div>

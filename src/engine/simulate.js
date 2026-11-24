@@ -59,7 +59,7 @@ function lutealOn(periods, date) {
 export function simulateRange({ seed, device, from, to, periods = null }) {
   const dev = deviceById(device) || deviceById('oura');
   const t = personal(seed);
-  const nights = [], steps = [], workouts = [];
+  const nights = [], steps = [], workouts = [], daytime = [];
   let ar = 0;
   for (let d = from; d <= to; d = addDays(d, 1)) {
     const r = rng(`${seed}:${device}:${d}`);
@@ -92,6 +92,29 @@ export function simulateRange({ seed, device, from, to, periods = null }) {
     nights.push(night);
     // steps for the day d
     if (!dev.noSteps) steps.push({ date: d, steps: Math.max(1200, Math.round(t.steps * (weekend ? 0.85 : 1) + 1800 * gauss(r))), source: device, simulated: true });
+    // Daytime still stretches for Stress (F9): 5-minute windows with heart rate, and HRV when the device takes it.
+    // Apple Watch takes HRV only every few hours (about one reading per window); rings and bands more often.
+    if (dev.hrv && ['watch', 'band', 'ring'].includes(dev.kind)) {
+      const rs = rng(`${seed}:${device}:${d}:day`);
+      const sAm = clamp(0.36 + 0.13 * gauss(rs) + (weekend ? -0.08 : 0.04) + (short ? 0.08 : 0), 0, 1);
+      const sPm = clamp(sAm + 0.06 + 0.12 * gauss(rs), 0, 1);
+      const mu = Math.log(t.hrv * 0.72);
+      const span = 0.3 * (t.hrmax - rhr);
+      const make = (s, n) => {
+        const out = [];
+        const hrvEvery = dev.hrv === 'sdnn' ? null : 3;
+        const sparse = dev.hrv === 'sdnn' ? (rs() < 0.75 ? Math.floor(rs() * n) : -1) : -1;
+        for (let i = 0; i < n; i++) {
+          const st = { hr: round(rhr + 3 + s * 0.95 * span + 2.5 * gauss(rs), 0) };
+          const withHrv = hrvEvery ? i % hrvEvery === 0 : i === sparse;
+          if (withHrv) st.hrv = round(Math.exp(mu - 0.9 * (s - 0.3) + 0.15 * gauss(rs)) * (dev.hrv === 'sdnn' ? 1.15 : 1), 1);
+          out.push(st);
+        }
+        return out;
+      };
+      const busy = rs() < 0.07;
+      daytime.push({ date: d, am: make(sAm, busy ? 4 : 8 + Math.floor(rs() * 9)), pm: make(sPm, 10 + Math.floor(rs() * 14)), source: device, simulated: true });
+    }
     // device-recorded cardio: Tue/Thu/Sat runs or rides
     if (dev.kind !== 'phone' && dev.kind !== 'bed' && [2, 4, 6].includes(dow) && r() < 0.8) {
       const minutes = Math.round(28 + r() * 25);
@@ -104,7 +127,7 @@ export function simulateRange({ seed, device, from, to, periods = null }) {
       });
     }
   }
-  return { nights, steps, workouts };
+  return { nights, steps, workouts, daytime };
 }
 
 // Seed in-app history so Progress, habits and strength trends have something to show.

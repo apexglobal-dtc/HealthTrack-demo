@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp, useLoad, Icon, Btn, Sheet, Back, Loading, ErrorBox, SimBadge, PILLAR, bandColor, confColor, dayName } from '../kit.jsx';
 import { Ring, CountUp, MiniRing, CapsuleBars } from '../viz.jsx';
 import { CheckinFields } from './onboarding.jsx';
+import { ENERGY_COLOR } from './energy.jsx';
 
 export function Today() {
   const { go, openSheet, act, toast, call, bump, boot } = useApp();
@@ -22,7 +23,8 @@ export function Today() {
       {/* Wellness Status */}
       <div className="card rise" style={{ animationDelay: '.05s' }}>
         <h2 style={{ margin: 0, fontSize: 19, letterSpacing: '-.01em' }}>Your Wellness Status for {longDate(t.date)}</h2>
-        <span className="row" style={{ gap: 6, marginTop: 8 }}><SimBadge show={sim} /><span className={`chip ${confColor(t.confidence)}`} style={{ padding: '3px 10px', fontSize: 12 }}>{t.confidence} confidence</span></span>
+        <span className="row wrap" style={{ gap: 6, marginTop: 8 }}><SimBadge show={sim} /><span className={`chip ${confColor(t.confidence)}`} style={{ padding: '3px 10px', fontSize: 12 }}>{t.confidence} confidence</span>
+          {t.energy && <button className={`chip ${t.energy.band.color}`} style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => go('energy')} aria-label={`Energy ${t.energy.now}, ${t.energy.band.name}. See energy and stress`}><Icon name="bolt" size={13} />Energy {t.energy.now} · {t.energy.band.name}</button>}</span>
         <div className="row" style={{ gap: 18, marginTop: 10 }}>
           <button onClick={() => go('status')} aria-label="How your status is made">
             <Ring value={t.status} size={150} stroke={15} dashed={!t.eligible}>
@@ -120,6 +122,21 @@ export function Today() {
       )}
 
       <TodaysPlan cats={t.planCategories} />
+
+      {t.energy && (
+        <button className="card tap rise" style={{ textAlign: 'left', animationDelay: '.2s' }} onClick={() => go('energy')}>
+          <div className="row between">
+            <span className="row" style={{ gap: 6 }}><Icon name="bolt" size={18} color="var(--amber)" /><b>Energy and stress</b></span>
+            <span className="xs muted">See the day <Icon name="chev" size={14} /></span>
+          </div>
+          <div className="row" style={{ gap: 14, marginTop: 8 }}>
+            <div><div className="xs muted">Energy now</div><b className="num" style={{ fontSize: 26, color: ENERGY_COLOR[t.energy.band.color] }}>{t.energy.now}</b></div>
+            <div><div className="xs muted">Stress, 9 AM</div><b className="num" style={{ fontSize: 26 }}>{t.energy.stressAm ?? '--'}</b></div>
+            <div><div className="xs muted">Stress, 3 PM</div><b className="num" style={{ fontSize: 26 }}>{t.energy.stressPm ?? '--'}</b></div>
+          </div>
+          <p className="small muted" style={{ margin: '6px 0 0' }}>{t.energy.goodUntilMin != null ? `Best window for a hard session: before ${(() => { const h = Math.floor(t.energy.goodUntilMin / 60); return `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`; })()}.` : 'Energy is under 50 now: keep training easy and get to bed on time.'}</p>
+        </button>
+      )}
 
       {/* Training */}
       {t.session && t.entitlements?.train && (
